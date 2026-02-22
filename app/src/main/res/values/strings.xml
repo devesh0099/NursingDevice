@@ -1,3 +1,23 @@
 <resources>
     <string name="app_name">Nursing Device</string>
+    <string name="servicedesc">Nursing Device HCE Service</string>
+    <string name="aiddescription">Nursing Device File and Text Transfer</string>
+    <string-array name="blood_groups">
+        <item>Select blood group</item>
+        <item>A+</item>
+        <item>A-</item>
+        <item>B+</item>
+        <item>B-</item>
+        <item>AB+</item>
+        <item>AB-</item>
+        <item>O+</item>
+        <item>O-</item>
+    </string-array>
+
+    <string-array name="genders">
+        <item>Select gender</item>
+        <item>Male</item>
+        <item>Female</item>
+        <item>Other</item>
+    </string-array>
 </resources>
