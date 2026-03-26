@@ -3,6 +3,8 @@ package com.example.nursingdevice
 import android.content.Intent
 import android.nfc.cardemulation.HostApduService
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import java.nio.ByteBuffer
 import java.util.Arrays
@@ -31,6 +33,8 @@ class MyHostApduService : HostApduService() {
         private var sharedFileMimeType: String? = null
         private var sharedAppendedFile: ByteArray? = null
         private var sharedCurrentFileName: String = "appended_data.dat"
+
+        var onStatusUpdate: ((String) -> Unit)? = null
 
         fun setTextForTransfer(text: String) {
             sharedTransferMode = "TEXT"
@@ -65,10 +69,12 @@ class MyHostApduService : HostApduService() {
         }
     }
 
+    private val mainHandler = Handler(Looper.getMainLooper())
+
     private fun notifyUI(step: String) {
-        val intent = Intent("NFC_AUTH_STEP")
-        intent.putExtra("step_message", step)
-        sendBroadcast(intent)
+        mainHandler.post {
+            onStatusUpdate?.invoke(step)
+        }
     }
 
     override fun processCommandApdu(commandApdu: ByteArray, extras: Bundle?): ByteArray {
@@ -76,6 +82,7 @@ class MyHostApduService : HostApduService() {
             isAuthenticated = false
             sessionKey = null
             tempEncryptedKey = null
+            fileChunkOffset = 0
 
             transferMode = sharedTransferMode
             textContent = sharedTextContent
@@ -148,6 +155,7 @@ class MyHostApduService : HostApduService() {
         val textBytes = text.toByteArray(Charsets.UTF_8)
         val modeByte = "T".toByteArray(Charsets.UTF_8)
         val textPayload = Utils.concatArrays(modeByte, textBytes)
+        notifyUI("Transfer Complete")
         return Utils.concatArrays(textPayload, Utils.SELECT_OK_SW)
     }
 
@@ -168,6 +176,9 @@ class MyHostApduService : HostApduService() {
                 val chunkSize = min(remaining, 245)
                 val chunk = content.copyOfRange(fileChunkOffset, fileChunkOffset + chunkSize)
                 fileChunkOffset += chunkSize
+                if (fileChunkOffset >= content.size) {
+                    notifyUI("Transfer Complete")
+                }
                 Utils.concatArrays(chunk, Utils.SELECT_OK_SW)
             }
             else -> Utils.UNKNOWN_CMD_SW
@@ -192,6 +203,9 @@ class MyHostApduService : HostApduService() {
                 val chunkSize = min(remaining, 245)
                 val chunk = fileData.copyOfRange(fileChunkOffset, fileChunkOffset + chunkSize)
                 fileChunkOffset += chunkSize
+                if (fileChunkOffset >= fileData.size) {
+                    notifyUI("Transfer Complete")
+                }
                 Utils.concatArrays(chunk, Utils.SELECT_OK_SW)
             }
             else -> Utils.UNKNOWN_CMD_SW

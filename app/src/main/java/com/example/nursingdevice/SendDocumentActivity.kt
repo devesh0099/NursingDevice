@@ -1,17 +1,13 @@
 package com.example.nursingdevice
 
 import android.annotation.SuppressLint
-import android.content.BroadcastReceiver
-import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.os.Bundle
 import android.util.Log
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.ContextCompat
 import java.io.File
 
 class SendDocumentActivity : AppCompatActivity() {
@@ -20,31 +16,6 @@ class SendDocumentActivity : AppCompatActivity() {
     private lateinit var fileNameText: TextView
     private lateinit var detailedLogText: TextView
     private lateinit var logScrollView: ScrollView
-
-    private val authReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            val message = intent?.getStringExtra("step_message")
-            if (message != null) {
-                runOnUiThread {
-                    if (message == "Step 1: Connection Established") {
-                        headerStatusText.text = "Authenticating..."
-                    } else if (message == "Transmitting Data...") {
-                        headerStatusText.text = "Sending Data..."
-                    } else if (message == "Transfer Complete" || message.contains("Completed")) {
-                        headerStatusText.text = "Transfer Complete"
-                    }
-
-                    val currentText = detailedLogText.text.toString()
-                    if (currentText.isEmpty()) {
-                        detailedLogText.text = message
-                    } else {
-                        detailedLogText.text = "$currentText\n$message"
-                    }
-                    logScrollView.post { logScrollView.fullScroll(ScrollView.FOCUS_DOWN) }
-                }
-            }
-        }
-    }
 
     @SuppressLint("MissingInflatedId")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -92,17 +63,50 @@ class SendDocumentActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        val filter = IntentFilter("NFC_AUTH_STEP")
-        ContextCompat.registerReceiver(this, authReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
+        MyHostApduService.onStatusUpdate = { message ->
+            if (message == "Step 1: Connection Established") {
+                headerStatusText.text = "Authenticating..."
+            } else if (message == "Transmitting Data...") {
+                headerStatusText.text = "Sending Data..."
+            } else if (message == "Transfer Complete" || message.contains("Completed")) {
+                headerStatusText.text = "Transfer Complete"
+                onTransferComplete()
+            }
+
+            val currentText = detailedLogText.text.toString()
+            if (currentText.isEmpty()) {
+                detailedLogText.text = message
+            } else {
+                detailedLogText.text = "$currentText\n$message"
+            }
+            logScrollView.post { logScrollView.fullScroll(ScrollView.FOCUS_DOWN) }
+        }
     }
 
     override fun onPause() {
         super.onPause()
-        try { unregisterReceiver(authReceiver) } catch (e: Exception) {}
+        MyHostApduService.onStatusUpdate = null
+    }
+
+    private fun onTransferComplete() {
+        // Delete the temp file from cacheDir (only used to pass data to HCE, not the review log)
+        val filePath = intent.getStringExtra("FILE_PATH")
+        if (filePath != null) {
+            File(filePath).delete()
+        }
+
+        Toast.makeText(this, "Data synced successfully", Toast.LENGTH_SHORT).show()
+
+        // Navigate back to home screen, clearing the back stack so user can't go back to the form
+        val homeIntent = Intent(this, MainActivity::class.java)
+        homeIntent.flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK
+        startActivity(homeIntent)
+        finish()
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        MyHostApduService.onStatusUpdate = null
         MyHostApduService.resetTransferState()
     }
 }
