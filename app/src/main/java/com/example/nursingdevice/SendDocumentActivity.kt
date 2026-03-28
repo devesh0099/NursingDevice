@@ -89,10 +89,14 @@ class SendDocumentActivity : AppCompatActivity() {
     }
 
     private fun onTransferComplete() {
-        // Delete the temp file from cacheDir (only used to pass data to HCE, not the review log)
+        // Record to session history only after successful NFC transfer
         val filePath = intent.getStringExtra("FILE_PATH")
         if (filePath != null) {
-            File(filePath).delete()
+            val file = File(filePath)
+            if (file.exists()) {
+                SessionCache.addUpdatedRecord(file.readText())
+                file.delete()
+            }
         }
 
         Toast.makeText(this, "Data synced successfully", Toast.LENGTH_SHORT).show()

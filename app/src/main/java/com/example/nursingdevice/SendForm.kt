@@ -285,9 +285,6 @@ class SendForm : AppCompatActivity(), RecognitionListener {
             generatedFile = File(cacheDir, fileName)
             generatedFile?.writeText(fileContent)
 
-            // Save to Session History for "View Patient Details" screen
-            SessionCache.addUpdatedRecord(fileContent)
-
             showPreview(fileName)
             Toast.makeText(this, "Record ready for NFC transfer", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
