@@ -226,7 +226,14 @@ class SendForm : AppCompatActivity(), RecognitionListener {
             val spokenText = matches[0]
 
             if (currentFieldIndex < voiceEnabledFields.size) {
-                voiceEnabledFields[currentFieldIndex].setText(spokenText)
+                val field = voiceEnabledFields[currentFieldIndex]
+                val existing = field.text.toString().trim()
+                if (existing.isEmpty()) {
+                    field.setText(spokenText)
+                } else {
+                    field.setText("$existing $spokenText")
+                }
+                field.setSelection(field.text.length)
                 Toast.makeText(this, "Logged: $spokenText", Toast.LENGTH_SHORT).show()
 
                 currentFieldIndex++
