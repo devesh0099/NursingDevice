@@ -268,7 +268,8 @@
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal">
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="12dp">
                     <EditText
                         android:id="@+id/temperatureInput"
                         android:layout_width="0dp"
@@ -296,32 +297,6 @@
                     android:orientation="horizontal"
                     android:layout_marginBottom="12dp">
                     <EditText
-                        android:id="@+id/medicationInput"
-                        android:layout_width="0dp"
-                        android:layout_weight="1"
-                        android:layout_height="50dp"
-                        android:hint="Medication"
-                        android:inputType="text"
-                        android:textColorHint="@color/colorTextSecondary"
-                        android:textColor="@color/colorTextPrimary"
-                        android:background="@color/colorInputBackground"
-                        android:paddingHorizontal="16dp" />
-                    <ImageButton
-                        android:id="@+id/voiceMedicationBtn"
-                        android:layout_width="50dp"
-                        android:layout_height="50dp"
-                        android:layout_marginStart="8dp"
-                        android:src="@android:drawable/ic_btn_speak_now"
-                        android:background="@color/colorInputBackground"
-                        app:tint="@color/colorPrimary"
-                        android:padding="12dp" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal">
-                    <EditText
                         android:id="@+id/descriptionInput"
                         android:layout_width="0dp"
                         android:layout_weight="1"
@@ -336,6 +311,44 @@
                         android:padding="16dp" />
                     <ImageButton
                         android:id="@+id/voiceDescriptionBtn"
+                        android:layout_width="50dp"
+                        android:layout_height="50dp"
+                        android:layout_marginStart="8dp"
+                        android:layout_gravity="center_vertical"
+                        android:src="@android:drawable/ic_btn_speak_now"
+                        android:background="@color/colorInputBackground"
+                        app:tint="@color/colorPrimary"
+                        android:padding="12dp" />
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Medication (say &quot;stop&quot; to finish voice input)"
+                    android:textSize="12sp"
+                    android:textColor="@color/colorTextSecondary"
+                    android:layout_marginBottom="4dp"
+                    android:layout_marginTop="4dp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+                    <EditText
+                        android:id="@+id/medicationInput"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="100dp"
+                        android:hint="Dictate medications - say &quot;stop&quot; when done"
+                        android:inputType="textMultiLine"
+                        android:gravity="top|start"
+                        android:lines="4"
+                        android:textColorHint="@color/colorTextSecondary"
+                        android:textColor="@color/colorTextPrimary"
+                        android:background="@color/colorInputBackground"
+                        android:padding="16dp" />
+                    <ImageButton
+                        android:id="@+id/voiceMedicationBtn"
                         android:layout_width="50dp"
                         android:layout_height="50dp"
                         android:layout_marginStart="8dp"
