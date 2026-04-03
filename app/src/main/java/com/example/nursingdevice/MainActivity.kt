@@ -9,7 +9,7 @@ import androidx.appcompat.app.AppCompatActivity
 import com.example.nursingdevice.connections.StoragePermission
 import com.google.android.material.button.MaterialButton
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : BaseActivity() {
 
     private var storagePermission: StoragePermission? = null
     private lateinit var sendMedicalFormButton: MaterialButton

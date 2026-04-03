@@ -10,7 +10,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import java.io.File
 
-class SendDocumentActivity : AppCompatActivity() {
+class SendDocumentActivity : BaseActivity() {
 
     private lateinit var headerStatusText: TextView
     private lateinit var fileNameText: TextView

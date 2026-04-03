@@ -16,7 +16,7 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.nio.ByteBuffer
 
-class ReaderActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
+class ReaderActivity : BaseActivity(), NfcAdapter.ReaderCallback {
 
     private var statusTextView: TextView? = null
     private var logTextView: TextView? = null

@@ -18,7 +18,7 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 
-class SendForm : AppCompatActivity(), RecognitionListener {
+class SendForm : BaseActivity(), RecognitionListener {
 
     private lateinit var nurseIdInput: EditText
     private lateinit var nameInput: EditText
