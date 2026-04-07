@@ -9,43 +9,134 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:gravity="center"
         android:orientation="vertical"
         android:padding="32dp">
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="40dp"
             android:text="Nurse Authentication"
             android:textColor="@color/colorTextPrimary"
             android:textSize="26sp"
-            android:textStyle="bold" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/registerBtn"
-            android:layout_width="match_parent"
-            android:layout_height="60dp"
-            android:layout_marginBottom="16dp"
-            app:cornerRadius="12dp"
-            app:backgroundTint="@color/colorPrimary"
-            android:textColor="@color/colorTextPrimary"
-            android:textSize="16sp"
             android:textStyle="bold"
-            android:text="Register Nurse" />
+            android:layout_gravity="center"
+            android:layout_marginBottom="32dp"/>
 
+        <!-- Nurse ID field — always visible -->
+        <EditText
+            android:id="@+id/nurseIdInput"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:hint="Nurse ID (e.g. NURSE_001)"
+            android:inputType="text"
+            android:textSize="15sp"
+            android:layout_marginBottom="16dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"/>
+
+        <!-- Login button -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/loginBtn"
             android:layout_width="match_parent"
-            android:layout_height="60dp"
-            app:cornerRadius="12dp"
-            app:backgroundTint="@color/colorSurface"
-            app:strokeColor="@color/colorPrimary"
-            app:strokeWidth="2dp"
-            android:textColor="@color/colorPrimary"
+            android:layout_height="56dp"
+            android:text="Login"
             android:textSize="16sp"
             android:textStyle="bold"
-            android:text="Login Securely" />
+            app:cornerRadius="12dp"
+            app:backgroundTint="@color/colorPrimary"
+            android:textColor="@color/colorTextPrimary"
+            android:layout_marginBottom="24dp"/>
+
+        <!-- Toggle link -->
+        <TextView
+            android:id="@+id/toggleLink"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="New nurse? Register here"
+            android:textColor="@color/colorPrimary"
+            android:textSize="14sp"
+            android:layout_gravity="center"
+            android:layout_marginBottom="24dp"/>
+
+        <!-- Registration fields — initially hidden -->
+        <LinearLayout
+            android:id="@+id/registerSection"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <EditText
+                android:id="@+id/nurseNameInput"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:hint="Full Name"
+                android:inputType="textPersonName"
+                android:textSize="15sp"
+                android:layout_marginBottom="12dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"/>
+
+            <EditText
+                android:id="@+id/nurseAgeInput"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:hint="Age"
+                android:inputType="number"
+                android:textSize="15sp"
+                android:layout_marginBottom="12dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"/>
+
+            <EditText
+                android:id="@+id/nurseGenderInput"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:hint="Gender"
+                android:inputType="text"
+                android:textSize="15sp"
+                android:layout_marginBottom="12dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"/>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Point of Care"
+                android:textSize="13sp"
+                android:textColor="@color/colorTextPrimary"
+                android:layout_marginBottom="4dp"/>
+
+            <Spinner
+                android:id="@+id/pocSpinner"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:layout_marginBottom="12dp"/>
+
+            <EditText
+                android:id="@+id/nurseContactInput"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:hint="Contact Number (optional)"
+                android:inputType="phone"
+                android:textSize="15sp"
+                android:layout_marginBottom="16dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"/>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/registerBtn"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:text="Register Nurse"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                app:cornerRadius="12dp"
+                app:backgroundTint="@color/colorPrimary"
+                android:textColor="@color/colorTextPrimary"
+                android:layout_marginBottom="8dp"/>
+
+        </LinearLayout>
 
     </LinearLayout>
 </ScrollView>

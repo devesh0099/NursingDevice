@@ -5,8 +5,8 @@ import android.content.SharedPreferences
 import org.json.JSONObject
 
 data class Nurse(
-    val name: String = "Nurse Kim Wexler",
-    val id: String = "NURSE_001"
+    val name: String = "",
+    val id: String = ""
 )
 
 data class Patient(
@@ -23,16 +23,21 @@ class NursePatientManager(private val context: Context) {
 
     companion object {
         private const val KEY_NURSE_NAME = "nurse_name"
+        private const val KEY_NURSE_ID   = "nurse_id"
         private const val KEY_PATIENT_JSON = "patient_json"
     }
 
     fun saveNurse(nurse: Nurse) {
-        prefs.edit().putString(KEY_NURSE_NAME, nurse.name).apply()
+        prefs.edit()
+            .putString(KEY_NURSE_NAME, nurse.name)
+            .putString(KEY_NURSE_ID, nurse.id)
+            .apply()
     }
 
     fun getNurse(): Nurse {
-        val name = prefs.getString(KEY_NURSE_NAME, "Nurse Kim Wexler") ?: "Nurse Kim Wexler"
-        return Nurse(name)
+        val name = prefs.getString(KEY_NURSE_NAME, "") ?: ""
+        val id   = prefs.getString(KEY_NURSE_ID, "") ?: ""
+        return Nurse(name = name, id = id)
     }
 
     fun savePatient(patientJson: String) {
@@ -44,9 +49,9 @@ class NursePatientManager(private val context: Context) {
         return try {
             val json = JSONObject(jsonStr)
             Patient(
-                name = json.getString("name"),
-                age = json.getInt("age"),
-                gender = json.getString("gender"),
+                name      = json.getString("name"),
+                age       = json.getInt("age"),
+                gender    = json.getString("gender"),
                 bloodType = json.getString("bloodType"),
                 patientId = json.getString("patientId")
             )

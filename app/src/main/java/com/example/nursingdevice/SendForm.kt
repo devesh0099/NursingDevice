@@ -105,6 +105,12 @@ class SendForm : AppCompatActivity(), RecognitionListener {
         // WORKFLOW ENFORCEMENT: Lock identity fields and load patient data
         enforceReadOnlyIdentity()
 
+        // Auto-populate nurse ID from logged-in nurse
+        val savedNurse = NursePatientManager(this).getNurse()
+        if (savedNurse.id.isNotEmpty()) {
+            nurseIdInput.setText(savedNurse.id)
+        }
+
         // Only add editable fields to voice sequence (medication last — continuous mode)
         voiceEnabledFields.clear()
         voiceEnabledFields.add(nurseIdInput)

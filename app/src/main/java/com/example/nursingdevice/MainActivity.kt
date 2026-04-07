@@ -56,17 +56,19 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        // Workflow Enforcement: Check if we have a patient loaded in the session
+        val nurse = NursePatientManager(this).getNurse()
+        val nurseLabel = if (nurse.name.isNotEmpty()) "Nurse: ${nurse.name}" else "Not logged in"
+
         if (SessionCache.currentPatientName == "None") {
-            nurseText.text = "Session Active | No Patient Scanned"
+            nurseText.text = "$nurseLabel | No Patient Scanned"
             sendMedicalFormButton.isEnabled = false
             sendMedicalFormButton.text = "Scan a Patient Tag First"
-            sendMedicalFormButton.alpha = 0.5f // Make it look disabled
+            sendMedicalFormButton.alpha = 0.5f
         } else {
-            nurseText.text = "Current Patient: ${SessionCache.currentPatientName}"
+            nurseText.text = "$nurseLabel | Patient: ${SessionCache.currentPatientName}"
             sendMedicalFormButton.isEnabled = true
             sendMedicalFormButton.text = "Update Patient Record"
-            sendMedicalFormButton.alpha = 1.0f // Fully visible
+            sendMedicalFormButton.alpha = 1.0f
         }
     }
 
