@@ -22,9 +22,11 @@ class MyHostApduService : HostApduService() {
     private var singleAppendedFile: ByteArray? = null
     private var currentFileName: String = "appended_data.dat"
 
-    private var tempEncryptedKey: ByteArray? = null
+    // NSE-AA auth state
     private var sessionKey: ByteArray? = null
     private var isAuthenticated = false
+    private var serverNonce: ByteArray? = null
+    private var serverVirtualId: ByteArray? = null
 
     companion object {
         private var sharedTransferMode = "NONE"
@@ -78,10 +80,12 @@ class MyHostApduService : HostApduService() {
     }
 
     override fun processCommandApdu(commandApdu: ByteArray, extras: Bundle?): ByteArray {
+        // ===== NSE-AA Step 1: SELECT — Generate and send challenge =====
         if (Arrays.equals(commandApdu, Utils.SELECT_APD)) {
             isAuthenticated = false
             sessionKey = null
-            tempEncryptedKey = null
+            serverNonce = null
+            serverVirtualId = null
             fileChunkOffset = 0
 
             transferMode = sharedTransferMode
@@ -89,40 +93,83 @@ class MyHostApduService : HostApduService() {
             fileContent = sharedFileContent
             fileMimeType = sharedFileMimeType
 
-            notifyUI("Step 1: Connection Established")
-            return Utils.SELECT_OK_SW
+            // Generate challenge per NSE-AA protocol (Table II, Step 2)
+            serverNonce = CryptoUtils.generateNonce()
+            serverVirtualId = CryptoUtils.generateMyVirtualIdentity(serverNonce!!)
+
+            // T1 = E(K_UD, id_VS || N_S)
+            val t1 = CryptoUtils.aesEncrypt(
+                serverVirtualId!! + serverNonce!!,
+                CryptoUtils.getKUD()
+            )
+
+            notifyUI("Step 1: Challenge Sent")
+            return Utils.concatArrays(serverNonce!!, t1, Utils.SELECT_OK_SW)
         }
 
-        if (commandApdu.size > 8 && Arrays.equals(commandApdu.take(8).toByteArray(), CryptoUtils.CMD_AUTH_SEND_KEY)) {
-            tempEncryptedKey = commandApdu.copyOfRange(8, commandApdu.size)
-            notifyUI("Step 2: Key Received")
-            return Utils.SELECT_OK_SW
-        }
+        // ===== NSE-AA Step 2: AUTH_RESP — Verify reader, derive session key K_S =====
+        val cmdResp = CryptoUtils.CMD_AUTH_RESP
+        if (commandApdu.size > cmdResp.size &&
+            commandApdu.take(cmdResp.size).toByteArray().contentEquals(cmdResp)) {
 
-        if (commandApdu.size > 8 && Arrays.equals(commandApdu.take(8).toByteArray(), CryptoUtils.CMD_AUTH_SEND_SIG)) {
-            val signature = commandApdu.copyOfRange(8, commandApdu.size)
-
-            if (tempEncryptedKey == null) {
-                notifyUI("Error: Signature without Key")
+            val storedNonce = serverNonce
+            val storedVirtualId = serverVirtualId
+            if (storedNonce == null || storedVirtualId == null) {
+                notifyUI("Error: Auth response without challenge")
                 return Utils.FILE_NOT_READY_SW
             }
 
             try {
-                val isValid = CryptoUtils.rsaVerify(tempEncryptedKey!!, signature, CryptoUtils.getOtherPublicKey())
+                val payload = commandApdu.copyOfRange(cmdResp.size, commandApdu.size)
+                val idVR = payload.copyOfRange(0, 16)
+                val nonceR = payload.copyOfRange(16, 32)
+                val t3 = payload.copyOfRange(payload.size - 32, payload.size)
+                val t2 = payload.copyOfRange(32, payload.size - 32)
 
-                if (isValid) {
-                    sessionKey = CryptoUtils.rsaDecrypt(tempEncryptedKey!!, CryptoUtils.getMyPrivateKey())
-                    isAuthenticated = true
+                // Decrypt T2: E(K_UD, pwb_R(32) || N_R(16) || N_S(16))
+                val t2Plain = CryptoUtils.aesDecrypt(t2, CryptoUtils.getKUD())
+                val pwbR = t2Plain.copyOfRange(0, 32)
+                val nR = t2Plain.copyOfRange(32, 48)
+                val nS = t2Plain.copyOfRange(48, 64)
 
-                    notifyUI("Step 3: Authenticated Securely")
-                    notifyUI("Transmitting Data...")
-
-                    val ack = "AUTH_OK".toByteArray(Charsets.UTF_8)
-                    val encryptedAck = CryptoUtils.xorEncryptDecrypt(ack, sessionKey!!)
-                    return Utils.concatArrays(encryptedAck, Utils.SELECT_OK_SW)
-                } else {
-                    notifyUI("Authentication Failed: Invalid Signature")
+                // Verify reader's identity via password-hash
+                if (!pwbR.contentEquals(CryptoUtils.OTHER_PWB)) {
+                    notifyUI("Auth Failed: Unknown device")
+                    return Utils.FILE_NOT_READY_SW
                 }
+                // Verify nonce freshness (anti-replay)
+                if (!nS.contentEquals(storedNonce)) {
+                    notifyUI("Auth Failed: Stale challenge")
+                    return Utils.FILE_NOT_READY_SW
+                }
+                if (!nR.contentEquals(nonceR)) {
+                    notifyUI("Auth Failed: Nonce mismatch")
+                    return Utils.FILE_NOT_READY_SW
+                }
+
+                // Derive session key K_S
+                val kS = CryptoUtils.deriveSessionKey(pwbR, CryptoUtils.MY_PWB, nonceR, storedNonce)
+
+                // Verify HMAC T3 for integrity
+                val expectedT3 = CryptoUtils.hmacSha256(kS,
+                    idVR + nonceR + storedVirtualId + storedNonce)
+                if (!t3.contentEquals(expectedT3)) {
+                    notifyUI("Auth Failed: Integrity check failed")
+                    return Utils.FILE_NOT_READY_SW
+                }
+
+                sessionKey = kS
+                isAuthenticated = true
+
+                notifyUI("Step 2: Mutually Authenticated (NSE-AA)")
+                notifyUI("Transmitting Data...")
+
+                // T4 = E(K_S, "AUTH_OK" || pwb_S || N_R) — proves server identity
+                val t4Plain = "AUTH_OK".toByteArray(Charsets.UTF_8) +
+                    CryptoUtils.MY_PWB + nonceR
+                val t4 = CryptoUtils.aesEncrypt(t4Plain, kS)
+                return Utils.concatArrays(t4, Utils.SELECT_OK_SW)
+
             } catch (e: Exception) {
                 notifyUI("Auth Error: ${e.message}")
             }

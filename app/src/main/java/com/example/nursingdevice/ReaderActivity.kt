@@ -16,7 +16,7 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.nio.ByteBuffer
 
-class ReaderActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
+class ReaderActivity : BaseActivity(), NfcAdapter.ReaderCallback {
 
     private var statusTextView: TextView? = null
     private var logTextView: TextView? = null
@@ -90,32 +90,65 @@ class ReaderActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
             isoDep.connect()
             isoDep.timeout = 10000
 
+            // ===== NSE-AA Mutual Authentication (Sethia et al., 2019) =====
+
+            // Step 1: SELECT — receive challenge: N_S(16) || T1(var) || SW(2)
             var response = isoDep.transceive(Utils.SELECT_APD)
-            if (!response.isSuccess()) throw IOException("AID selection failed.")
-            logStep("Step 2: App Selected")
+            if (!response.isSuccess() || response.size < 18)
+                throw IOException("AID selection / challenge failed.")
+            logStep("Step 2: Challenge Received")
 
-            sessionKey = CryptoUtils.generateSessionKey()
-            val encryptedKey = CryptoUtils.rsaEncrypt(sessionKey!!, CryptoUtils.getOtherPublicKey())
-            val signature = CryptoUtils.rsaSign(encryptedKey, CryptoUtils.getMyPrivateKey())
+            val serverNonce = response.copyOfRange(0, 16)
+            val t1 = response.copyOfRange(16, response.size - 2)
 
-            val sendKeyCmd = Utils.concatArrays(CryptoUtils.CMD_AUTH_SEND_KEY, encryptedKey)
-            var authRes = isoDep.transceive(sendKeyCmd)
-            if (!authRes.isSuccess()) throw IOException("Auth Step 1 (Key Exchange) failed.")
-            logStep("Step 3: Session Key Sent")
+            // Decrypt T1 → id_VS(16) || N_S(16)
+            val t1Plain = CryptoUtils.aesDecrypt(t1, CryptoUtils.getKUD())
+            val serverVirtualId = t1Plain.copyOfRange(0, 16)
+            val serverNonceFromT1 = t1Plain.copyOfRange(16, 32)
 
-            val sendSigCmd = Utils.concatArrays(CryptoUtils.CMD_AUTH_SEND_SIG, signature)
-            authRes = isoDep.transceive(sendSigCmd)
-            if (!authRes.isSuccess()) throw IOException("Auth Step 2 (Signature Validation) failed.")
-            logStep("Step 4: Signature Sent")
+            if (!serverNonceFromT1.contentEquals(serverNonce))
+                throw IOException("Challenge nonce mismatch")
+            val expectedVId = CryptoUtils.computeOtherVirtualIdentity(serverNonce)
+            if (!serverVirtualId.contentEquals(expectedVId))
+                throw IOException("Server identity verification failed")
+            logStep("Step 3: Server Identity Verified")
 
-            val encryptedAck = authRes.getData()
-            val decryptedAck = CryptoUtils.xorEncryptDecrypt(encryptedAck, sessionKey!!)
-            if (String(decryptedAck, Charsets.UTF_8) != "AUTH_OK") {
-                throw IOException("Authentication rejected by the sender.")
+            // Step 2: Build AUTH_RESP
+            val readerNonce = CryptoUtils.generateNonce()
+            val readerVirtualId = CryptoUtils.generateMyVirtualIdentity(readerNonce)
+
+            val t2 = CryptoUtils.aesEncrypt(
+                CryptoUtils.MY_PWB + readerNonce + serverNonce,
+                CryptoUtils.getKUD()
+            )
+            sessionKey = CryptoUtils.deriveSessionKey(
+                CryptoUtils.MY_PWB, CryptoUtils.OTHER_PWB, readerNonce, serverNonce
+            )
+            val t3 = CryptoUtils.hmacSha256(sessionKey!!,
+                readerVirtualId + readerNonce + serverVirtualId + serverNonce)
+
+            val authCmd = Utils.concatArrays(
+                CryptoUtils.CMD_AUTH_RESP, readerVirtualId, readerNonce, t2, t3
+            )
+            val authRes = isoDep.transceive(authCmd)
+            if (!authRes.isSuccess()) throw IOException("AUTH_RESP rejected.")
+            logStep("Step 4: Auth Response Sent")
+
+            // Step 3: Verify mutual auth confirmation
+            val t4 = authRes.getData()
+            val t4Plain = CryptoUtils.aesDecrypt(t4, sessionKey!!)
+            val authOk = String(t4Plain.copyOfRange(0, 7), Charsets.UTF_8)
+            val serverPwb = t4Plain.copyOfRange(7, 39)
+            val echoedNonce = t4Plain.copyOfRange(39, 55)
+
+            if (authOk != "AUTH_OK" ||
+                !serverPwb.contentEquals(CryptoUtils.OTHER_PWB) ||
+                !echoedNonce.contentEquals(readerNonce)) {
+                throw IOException("NSE-AA mutual authentication failed")
             }
 
             runOnUiThread { statusTextView?.text = "Connection Secured" }
-            logStep("Step 5: Secure connection established. Requesting data...")
+            logStep("Step 5: NSE-AA Mutual Auth Complete. Requesting data...")
 
             response = isoDep.transceive(Utils.GET_FILE_INFO_COMMAND)
             if (response.size <= 2) throw IOException("No metadata received from sender")

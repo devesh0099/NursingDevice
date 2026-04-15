@@ -1,454 +1,473 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@color/colorBackground"
-    android:fillViewport="true">
+    android:layout_height="match_parent">
 
-    <LinearLayout
+    <ScrollView
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="16dp">
+        android:layout_height="match_parent"
+        android:background="@color/colorBackground"
+        android:fillViewport="true">
 
         <LinearLayout
-            android:id="@+id/formContainer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:visibility="visible">
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Update Patient Vitals"
-                android:textSize="24sp"
-                android:textStyle="bold"
-                android:textColor="@color/colorTextPrimary"
-                android:layout_marginBottom="16dp" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/startVoiceBtn"
-                android:layout_width="match_parent"
-                android:layout_height="55dp"
-                android:text="Start Voice Dictation"
-                app:cornerRadius="12dp"
-                android:textColor="@color/colorOnPrimary"
-                app:backgroundTint="@color/colorPrimary"
-                android:textSize="16sp"
-                android:textStyle="bold"
-                android:layout_marginBottom="24dp" />
+            android:padding="16dp">
 
             <LinearLayout
+                android:id="@+id/formContainer"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="16dp"
-                android:elevation="2dp"
-                android:background="@color/colorSurface"
-                android:layout_marginBottom="16dp">
+                android:visibility="visible">
 
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Staff Verification"
-                    android:textSize="14sp"
+                    android:text="Update Patient Vitals"
+                    android:textSize="24sp"
                     android:textStyle="bold"
-                    android:textColor="@color/colorPrimary"
-                    android:layout_marginBottom="12dp" />
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical">
-
-                    <EditText
-                        android:id="@+id/nurseIdInput"
-                        android:layout_width="0dp"
-                        android:layout_weight="1"
-                        android:layout_height="50dp"
-                        android:hint="Nurse ID *"
-                        android:textColorHint="@color/colorTextSecondary"
-                        android:textColor="@color/colorTextPrimary"
-                        android:inputType="textCapCharacters"
-                        android:background="@color/colorInputBackground"
-                        android:paddingHorizontal="16dp" />
-
-                    <ImageButton
-                        android:id="@+id/voiceNurseIdBtn"
-                        android:layout_width="50dp"
-                        android:layout_height="50dp"
-                        android:layout_marginStart="8dp"
-                        android:src="@android:drawable/ic_btn_speak_now"
-                        android:background="@color/colorInputBackground"
-                        app:tint="@color/colorPrimary"
-                        android:scaleType="centerInside"
-                        android:padding="12dp" />
-                </LinearLayout>
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp"
-                android:elevation="2dp"
-                android:background="@color/colorSurface"
-                android:layout_marginBottom="16dp">
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Patient Demographics"
-                    android:textSize="14sp"
-                    android:textStyle="bold"
-                    android:textColor="@color/colorPrimary"
-                    android:layout_marginBottom="12dp" />
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:layout_marginBottom="12dp">
-
-                    <EditText
-                        android:id="@+id/nameInput"
-                        android:layout_width="0dp"
-                        android:layout_weight="1"
-                        android:layout_height="50dp"
-                        android:hint="Patient Name *"
-                        android:textColorHint="@color/colorTextSecondary"
-                        android:textColor="@color/colorTextPrimary"
-                        android:inputType="textPersonName"
-                        android:background="@color/colorInputBackground"
-                        android:paddingHorizontal="16dp" />
-
-                    <ImageButton
-                        android:id="@+id/voiceNameBtn"
-                        android:layout_width="50dp"
-                        android:layout_height="50dp"
-                        android:layout_marginStart="8dp"
-                        android:src="@android:drawable/ic_btn_speak_now"
-                        android:background="@color/colorInputBackground"
-                        app:tint="@color/colorPrimary"
-                        android:scaleType="centerInside"
-                        android:padding="12dp" />
-                </LinearLayout>
-
-                <Spinner
-                    android:id="@+id/bloodGroupSpinner"
-                    android:layout_width="match_parent"
-                    android:layout_height="50dp"
-                    android:background="@color/colorInputBackground"
-                    android:layout_marginBottom="12dp" />
-
-                <Spinner
-                    android:id="@+id/genderSpinner"
-                    android:layout_width="match_parent"
-                    android:layout_height="50dp"
-                    android:background="@color/colorInputBackground"
-                    android:layout_marginBottom="12dp" />
-
-                <EditText
-                    android:id="@+id/dobInput"
-                    android:layout_width="match_parent"
-                    android:layout_height="50dp"
-                    android:hint="Date of Birth (Tap to Select)"
-                    android:textColorHint="@color/colorTextSecondary"
                     android:textColor="@color/colorTextPrimary"
-                    android:focusable="false"
-                    android:clickable="true"
-                    android:inputType="none"
-                    android:background="@color/colorInputBackground"
-                    android:paddingHorizontal="16dp" />
-            </LinearLayout>
+                    android:layout_marginBottom="16dp" />
 
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp"
-                android:elevation="2dp"
-                android:background="@color/colorSurface"
-                android:layout_marginBottom="24dp">
-
-                <TextView
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/startVoiceBtn"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Vital Signs"
-                    android:textSize="14sp"
+                    android:layout_height="55dp"
+                    android:text="Start Voice Dictation"
+                    app:cornerRadius="12dp"
+                    android:textColor="@color/colorOnPrimary"
+                    app:backgroundTint="@color/colorPrimary"
+                    android:textSize="16sp"
                     android:textStyle="bold"
-                    android:textColor="@color/colorPrimary"
-                    android:layout_marginBottom="12dp" />
+                    android:layout_marginBottom="24dp" />
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:layout_marginBottom="12dp">
-                    <EditText
-                        android:id="@+id/bpInput"
-                        android:inputType="numberDecimal"
-                        android:layout_width="0dp"
-                        android:layout_weight="1"
-                        android:layout_height="50dp"
-                        android:hint="BP (e.g. 120/80)"
-                        android:textColorHint="@color/colorTextSecondary"
-                        android:textColor="@color/colorTextPrimary"
-                        android:background="@color/colorInputBackground"
-                        android:paddingHorizontal="16dp" />
-                    <ImageButton
-                        android:id="@+id/voiceBpBtn"
-                        android:layout_width="50dp"
-                        android:layout_height="50dp"
-                        android:layout_marginStart="8dp"
-                        android:src="@android:drawable/ic_btn_speak_now"
-                        android:background="@color/colorInputBackground"
-                        app:tint="@color/colorPrimary"
-                        android:padding="12dp" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:layout_marginBottom="12dp">
-                    <EditText
-                        android:id="@+id/heartRateInput"
-                        android:layout_width="0dp"
-                        android:layout_weight="1"
-                        android:layout_height="50dp"
-                        android:hint="Heart Rate (bpm)"
-                        android:inputType="numberDecimal"
-                        android:textColorHint="@color/colorTextSecondary"
-                        android:textColor="@color/colorTextPrimary"
-                        android:background="@color/colorInputBackground"
-                        android:paddingHorizontal="16dp" />
-                    <ImageButton
-                        android:id="@+id/voiceHeartRateBtn"
-                        android:layout_width="50dp"
-                        android:layout_height="50dp"
-                        android:layout_marginStart="8dp"
-                        android:src="@android:drawable/ic_btn_speak_now"
-                        android:background="@color/colorInputBackground"
-                        app:tint="@color/colorPrimary"
-                        android:padding="12dp" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:layout_marginBottom="12dp">
-                    <EditText
-                        android:id="@+id/respiratoryRateInput"
-                        android:layout_width="0dp"
-                        android:layout_weight="1"
-                        android:layout_height="50dp"
-                        android:hint="Resp. Rate (br/min)"
-                        android:inputType="numberDecimal"
-                        android:textColorHint="@color/colorTextSecondary"
-                        android:textColor="@color/colorTextPrimary"
-                        android:background="@color/colorInputBackground"
-                        android:paddingHorizontal="16dp" />
-                    <ImageButton
-                        android:id="@+id/voiceRespRateBtn"
-                        android:layout_width="50dp"
-                        android:layout_height="50dp"
-                        android:layout_marginStart="8dp"
-                        android:src="@android:drawable/ic_btn_speak_now"
-                        android:background="@color/colorInputBackground"
-                        app:tint="@color/colorPrimary"
-                        android:padding="12dp" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:layout_marginBottom="12dp">
-                    <EditText
-                        android:id="@+id/temperatureInput"
-                        android:layout_width="0dp"
-                        android:layout_weight="1"
-                        android:layout_height="50dp"
-                        android:hint="Temperature (°F)"
-                        android:inputType="numberDecimal"
-                        android:textColorHint="@color/colorTextSecondary"
-                        android:textColor="@color/colorTextPrimary"
-                        android:background="@color/colorInputBackground"
-                        android:paddingHorizontal="16dp" />
-                    <ImageButton
-                        android:id="@+id/voiceTempBtn"
-                        android:layout_width="50dp"
-                        android:layout_height="50dp"
-                        android:layout_marginStart="8dp"
-                        android:src="@android:drawable/ic_btn_speak_now"
-                        android:background="@color/colorInputBackground"
-                        app:tint="@color/colorPrimary"
-                        android:padding="12dp" />
-                </LinearLayout>
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:layout_marginBottom="12dp">
-                    <EditText
-                        android:id="@+id/descriptionInput"
-                        android:layout_width="0dp"
-                        android:layout_weight="1"
-                        android:layout_height="80dp"
-                        android:hint="Description"
-                        android:inputType="textMultiLine"
-                        android:gravity="top|start"
-                        android:lines="3"
-                        android:textColorHint="@color/colorTextSecondary"
-                        android:textColor="@color/colorTextPrimary"
-                        android:background="@color/colorInputBackground"
-                        android:padding="16dp" />
-                    <ImageButton
-                        android:id="@+id/voiceDescriptionBtn"
-                        android:layout_width="50dp"
-                        android:layout_height="50dp"
-                        android:layout_marginStart="8dp"
-                        android:layout_gravity="center_vertical"
-                        android:src="@android:drawable/ic_btn_speak_now"
-                        android:background="@color/colorInputBackground"
-                        app:tint="@color/colorPrimary"
-                        android:padding="12dp" />
-                </LinearLayout>
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Medication (say &quot;stop&quot; to finish voice input)"
-                    android:textSize="12sp"
-                    android:textColor="@color/colorTextSecondary"
-                    android:layout_marginBottom="4dp"
-                    android:layout_marginTop="4dp" />
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal">
-                    <EditText
-                        android:id="@+id/medicationInput"
-                        android:layout_width="0dp"
-                        android:layout_weight="1"
-                        android:layout_height="100dp"
-                        android:hint="Dictate medications - say &quot;stop&quot; when done"
-                        android:inputType="textMultiLine"
-                        android:gravity="top|start"
-                        android:lines="4"
-                        android:textColorHint="@color/colorTextSecondary"
-                        android:textColor="@color/colorTextPrimary"
-                        android:background="@color/colorInputBackground"
-                        android:padding="16dp" />
-                    <ImageButton
-                        android:id="@+id/voiceMedicationBtn"
-                        android:layout_width="50dp"
-                        android:layout_height="50dp"
-                        android:layout_marginStart="8dp"
-                        android:layout_gravity="center_vertical"
-                        android:src="@android:drawable/ic_btn_speak_now"
-                        android:background="@color/colorInputBackground"
-                        app:tint="@color/colorPrimary"
-                        android:padding="12dp" />
-                </LinearLayout>
-            </LinearLayout>
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/generateButton"
-                android:layout_width="match_parent"
-                android:layout_height="60dp"
-                android:text="Review Medical Report"
-                app:cornerRadius="12dp"
-                android:textColor="@color/colorOnSuccess"
-                app:backgroundTint="@color/colorSuccess"
-                android:textSize="16sp"
-                android:textStyle="bold" />
-
-        </LinearLayout>
-
-        <LinearLayout
-            android:id="@+id/previewContainer"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:visibility="gone">
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Record Verification"
-                android:textSize="22sp"
-                android:textStyle="bold"
-                android:textColor="@color/colorTextPrimary"
-                android:layout_marginBottom="16dp" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp"
-                android:elevation="2dp"
-                android:background="@color/colorSurface"
-                android:layout_marginBottom="24dp">
-
-                <TextView
-                    android:id="@+id/fileNameText"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="File name: medical_data.txt"
-                    android:textSize="14sp"
-                    android:textStyle="bold"
-                    android:textColor="@color/colorPrimary"
-                    android:layout_marginBottom="12dp" />
-
-                <ScrollView
-                    android:layout_width="match_parent"
-                    android:layout_height="300dp"
-                    android:background="@color/colorInputBackground"
-                    android:padding="12dp">
+                    android:orientation="vertical"
+                    android:padding="16dp"
+                    android:elevation="2dp"
+                    android:background="@color/colorSurface"
+                    android:layout_marginBottom="16dp">
 
                     <TextView
-                        android:id="@+id/fileContentText"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:fontFamily="monospace"
+                        android:text="Staff Verification"
                         android:textSize="14sp"
-                        android:textColor="@color/colorTextPrimary" />
-                </ScrollView>
+                        android:textStyle="bold"
+                        android:textColor="@color/colorPrimary"
+                        android:layout_marginBottom="12dp" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <EditText
+                            android:id="@+id/nurseIdInput"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:layout_height="50dp"
+                            android:hint="Nurse ID *"
+                            android:textColorHint="@color/colorTextSecondary"
+                            android:textColor="@color/colorTextPrimary"
+                            android:inputType="textCapCharacters"
+                            android:background="@color/colorInputBackground"
+                            android:paddingHorizontal="16dp" />
+
+                        <ImageButton
+                            android:id="@+id/voiceNurseIdBtn"
+                            android:layout_width="50dp"
+                            android:layout_height="50dp"
+                            android:layout_marginStart="8dp"
+                            android:src="@android:drawable/ic_btn_speak_now"
+                            android:background="@color/colorInputBackground"
+                            app:tint="@color/colorPrimary"
+                            android:scaleType="centerInside"
+                            android:padding="12dp" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp"
+                    android:elevation="2dp"
+                    android:background="@color/colorSurface"
+                    android:layout_marginBottom="16dp">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Patient Demographics"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/colorPrimary"
+                        android:layout_marginBottom="12dp" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="12dp">
+
+                        <EditText
+                            android:id="@+id/nameInput"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:layout_height="50dp"
+                            android:hint="Patient Name *"
+                            android:textColorHint="@color/colorTextSecondary"
+                            android:textColor="@color/colorTextPrimary"
+                            android:inputType="textPersonName"
+                            android:background="@color/colorInputBackground"
+                            android:paddingHorizontal="16dp" />
+
+                        <ImageButton
+                            android:id="@+id/voiceNameBtn"
+                            android:layout_width="50dp"
+                            android:layout_height="50dp"
+                            android:layout_marginStart="8dp"
+                            android:src="@android:drawable/ic_btn_speak_now"
+                            android:background="@color/colorInputBackground"
+                            app:tint="@color/colorPrimary"
+                            android:scaleType="centerInside"
+                            android:padding="12dp" />
+                    </LinearLayout>
+
+                    <Spinner
+                        android:id="@+id/bloodGroupSpinner"
+                        android:layout_width="match_parent"
+                        android:layout_height="50dp"
+                        android:background="@color/colorInputBackground"
+                        android:layout_marginBottom="12dp" />
+
+                    <Spinner
+                        android:id="@+id/genderSpinner"
+                        android:layout_width="match_parent"
+                        android:layout_height="50dp"
+                        android:background="@color/colorInputBackground"
+                        android:layout_marginBottom="12dp" />
+
+                    <EditText
+                        android:id="@+id/dobInput"
+                        android:layout_width="match_parent"
+                        android:layout_height="50dp"
+                        android:hint="Date of Birth (Tap to Select)"
+                        android:textColorHint="@color/colorTextSecondary"
+                        android:textColor="@color/colorTextPrimary"
+                        android:focusable="false"
+                        android:clickable="true"
+                        android:inputType="none"
+                        android:background="@color/colorInputBackground"
+                        android:paddingHorizontal="16dp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp"
+                    android:elevation="2dp"
+                    android:background="@color/colorSurface"
+                    android:layout_marginBottom="24dp">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Vital Signs"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/colorPrimary"
+                        android:layout_marginBottom="12dp" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:layout_marginBottom="12dp">
+                        <EditText
+                            android:id="@+id/bpInput"
+                            android:inputType="numberDecimal"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:layout_height="50dp"
+                            android:hint="BP (e.g. 120/80)"
+                            android:textColorHint="@color/colorTextSecondary"
+                            android:textColor="@color/colorTextPrimary"
+                            android:background="@color/colorInputBackground"
+                            android:paddingHorizontal="16dp" />
+                        <ImageButton
+                            android:id="@+id/voiceBpBtn"
+                            android:layout_width="50dp"
+                            android:layout_height="50dp"
+                            android:layout_marginStart="8dp"
+                            android:src="@android:drawable/ic_btn_speak_now"
+                            android:background="@color/colorInputBackground"
+                            app:tint="@color/colorPrimary"
+                            android:padding="12dp" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:layout_marginBottom="12dp">
+                        <EditText
+                            android:id="@+id/heartRateInput"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:layout_height="50dp"
+                            android:hint="Heart Rate (bpm)"
+                            android:inputType="numberDecimal"
+                            android:textColorHint="@color/colorTextSecondary"
+                            android:textColor="@color/colorTextPrimary"
+                            android:background="@color/colorInputBackground"
+                            android:paddingHorizontal="16dp" />
+                        <ImageButton
+                            android:id="@+id/voiceHeartRateBtn"
+                            android:layout_width="50dp"
+                            android:layout_height="50dp"
+                            android:layout_marginStart="8dp"
+                            android:src="@android:drawable/ic_btn_speak_now"
+                            android:background="@color/colorInputBackground"
+                            app:tint="@color/colorPrimary"
+                            android:padding="12dp" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:layout_marginBottom="12dp">
+                        <EditText
+                            android:id="@+id/respiratoryRateInput"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:layout_height="50dp"
+                            android:hint="Resp. Rate (br/min)"
+                            android:inputType="numberDecimal"
+                            android:textColorHint="@color/colorTextSecondary"
+                            android:textColor="@color/colorTextPrimary"
+                            android:background="@color/colorInputBackground"
+                            android:paddingHorizontal="16dp" />
+                        <ImageButton
+                            android:id="@+id/voiceRespRateBtn"
+                            android:layout_width="50dp"
+                            android:layout_height="50dp"
+                            android:layout_marginStart="8dp"
+                            android:src="@android:drawable/ic_btn_speak_now"
+                            android:background="@color/colorInputBackground"
+                            app:tint="@color/colorPrimary"
+                            android:padding="12dp" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:layout_marginBottom="12dp">
+                        <EditText
+                            android:id="@+id/temperatureInput"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:layout_height="50dp"
+                            android:hint="Temperature (°F)"
+                            android:inputType="numberDecimal"
+                            android:textColorHint="@color/colorTextSecondary"
+                            android:textColor="@color/colorTextPrimary"
+                            android:background="@color/colorInputBackground"
+                            android:paddingHorizontal="16dp" />
+                        <ImageButton
+                            android:id="@+id/voiceTempBtn"
+                            android:layout_width="50dp"
+                            android:layout_height="50dp"
+                            android:layout_marginStart="8dp"
+                            android:src="@android:drawable/ic_btn_speak_now"
+                            android:background="@color/colorInputBackground"
+                            app:tint="@color/colorPrimary"
+                            android:padding="12dp" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:layout_marginBottom="12dp">
+                        <EditText
+                            android:id="@+id/descriptionInput"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:layout_height="80dp"
+                            android:hint="Description"
+                            android:inputType="textMultiLine"
+                            android:gravity="top|start"
+                            android:lines="3"
+                            android:textColorHint="@color/colorTextSecondary"
+                            android:textColor="@color/colorTextPrimary"
+                            android:background="@color/colorInputBackground"
+                            android:padding="16dp" />
+                        <ImageButton
+                            android:id="@+id/voiceDescriptionBtn"
+                            android:layout_width="50dp"
+                            android:layout_height="50dp"
+                            android:layout_marginStart="8dp"
+                            android:layout_gravity="center_vertical"
+                            android:src="@android:drawable/ic_btn_speak_now"
+                            android:background="@color/colorInputBackground"
+                            app:tint="@color/colorPrimary"
+                            android:padding="12dp" />
+                    </LinearLayout>
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Medication (say &quot;stop&quot; to finish voice input)"
+                        android:textSize="12sp"
+                        android:textColor="@color/colorTextSecondary"
+                        android:layout_marginBottom="4dp"
+                        android:layout_marginTop="4dp" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal">
+                        <EditText
+                            android:id="@+id/medicationInput"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:layout_height="100dp"
+                            android:hint="Dictate medications - say &quot;stop&quot; when done"
+                            android:inputType="textMultiLine"
+                            android:gravity="top|start"
+                            android:lines="4"
+                            android:textColorHint="@color/colorTextSecondary"
+                            android:textColor="@color/colorTextPrimary"
+                            android:background="@color/colorInputBackground"
+                            android:padding="16dp" />
+                        <ImageButton
+                            android:id="@+id/voiceMedicationBtn"
+                            android:layout_width="50dp"
+                            android:layout_height="50dp"
+                            android:layout_marginStart="8dp"
+                            android:layout_gravity="center_vertical"
+                            android:src="@android:drawable/ic_btn_speak_now"
+                            android:background="@color/colorInputBackground"
+                            app:tint="@color/colorPrimary"
+                            android:padding="12dp" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/generateButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="60dp"
+                    android:text="Review Medical Report"
+                    app:cornerRadius="12dp"
+                    android:textColor="@color/colorOnSuccess"
+                    app:backgroundTint="@color/colorSuccess"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
             </LinearLayout>
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/sendNfcButton"
+            <LinearLayout
+                android:id="@+id/previewContainer"
                 android:layout_width="match_parent"
-                android:layout_height="60dp"
-                android:text="Write to NFC Tag"
-                app:cornerRadius="12dp"
-                app:backgroundTint="@color/colorPrimary"
-                android:textColor="@color/colorOnPrimary"
-                android:textSize="16sp"
-                android:textStyle="bold"
-                android:layout_marginBottom="12dp" />
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/editButton"
-                android:layout_width="match_parent"
-                android:layout_height="60dp"
-                android:text="Edit Form"
-                app:cornerRadius="12dp"
-                app:backgroundTint="@color/colorBackground"
-                app:strokeColor="@color/colorTextSecondary"
-                app:strokeWidth="1dp"
-                android:textColor="@color/colorTextSecondary"
-                android:textSize="16sp"
-                android:textStyle="bold" />
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Record Verification"
+                    android:textSize="22sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/colorTextPrimary"
+                    android:layout_marginBottom="16dp" />
 
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp"
+                    android:elevation="2dp"
+                    android:background="@color/colorSurface"
+                    android:layout_marginBottom="24dp">
+
+                    <TextView
+                        android:id="@+id/fileNameText"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="File name: medical_data.txt"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/colorPrimary"
+                        android:layout_marginBottom="12dp" />
+
+                    <ScrollView
+                        android:layout_width="match_parent"
+                        android:layout_height="300dp"
+                        android:background="@color/colorInputBackground"
+                        android:padding="12dp">
+
+                        <TextView
+                            android:id="@+id/fileContentText"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="monospace"
+                            android:textSize="14sp"
+                            android:textColor="@color/colorTextPrimary" />
+                    </ScrollView>
+                </LinearLayout>
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/sendNfcButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="60dp"
+                    android:text="Write to NFC Tag"
+                    app:cornerRadius="12dp"
+                    app:backgroundTint="@color/colorPrimary"
+                    android:textColor="@color/colorOnPrimary"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="12dp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/editButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="60dp"
+                    android:text="Edit Form"
+                    app:cornerRadius="12dp"
+                    app:backgroundTint="@color/colorBackground"
+                    app:strokeColor="@color/colorTextSecondary"
+                    app:strokeWidth="1dp"
+                    android:textColor="@color/colorTextSecondary"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+            </LinearLayout>
         </LinearLayout>
-    </LinearLayout>
-</ScrollView>
+    </ScrollView>
+
+    <!-- Floating Home Button - bottom right -->
+    <ImageButton
+        android:id="@+id/homeBtn"
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:layout_gravity="bottom|end"
+        android:layout_margin="24dp"
+        android:src="@android:drawable/ic_menu_revert"
+        android:background="@color/colorPrimary"
+        android:contentDescription="Go to Home"
+        android:padding="12dp" />
+
+</FrameLayout>

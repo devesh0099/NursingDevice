@@ -18,7 +18,7 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 
-class SendForm : AppCompatActivity(), RecognitionListener {
+class SendForm : BaseActivity(), RecognitionListener {
 
     private lateinit var nurseIdInput: EditText
     private lateinit var nameInput: EditText
@@ -182,7 +182,7 @@ class SendForm : AppCompatActivity(), RecognitionListener {
         }
     }
 
-    private fun isMedicationField(index: Int): Boolean = index == 6
+    private fun isContinuousField(index: Int): Boolean = index == 5 || index == 6
 
     private fun checkAudioPermission() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
@@ -206,8 +206,8 @@ class SendForm : AppCompatActivity(), RecognitionListener {
 
         currentFieldIndex = index
         voiceEnabledFields[index].requestFocus()
-        if (isMedicationField(index)) {
-            Toast.makeText(this, "Listening for Medication... say \"stop\" when done", Toast.LENGTH_LONG).show()
+        if (isContinuousField(index)) {
+            Toast.makeText(this, "Listening for ${getFieldName(index)}... say \"stop\" when done", Toast.LENGTH_LONG).show()
         } else {
             Toast.makeText(this, "Listening for ${getFieldName(index)}...", Toast.LENGTH_SHORT).show()
         }
@@ -227,8 +227,8 @@ class SendForm : AppCompatActivity(), RecognitionListener {
     override fun onEndOfSpeech() { isListening = false }
     override fun onError(error: Int) {
         isListening = false
-        if (isMedicationField(currentFieldIndex) && (error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT)) {
-            // Medication field: keep listening through silence
+        if (isContinuousField(currentFieldIndex) && (error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT)) {
+            // Continuous fields: keep listening through silence
             Handler(Looper.getMainLooper()).postDelayed({
                 startVoiceInputAtIndex(currentFieldIndex)
             }, 500)
@@ -246,10 +246,22 @@ class SendForm : AppCompatActivity(), RecognitionListener {
 
             if (currentFieldIndex < voiceEnabledFields.size) {
                 // Medication field: continuous listening until user says "stop"
-                if (isMedicationField(currentFieldIndex)) {
+// Continuous fields (Description and Medication): listen until user says "stop"
+                if (isContinuousField(currentFieldIndex)) {
                     if (spokenText.trim().equals("stop", ignoreCase = true)) {
-                        Toast.makeText(this, "Medication input done", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this, "${getFieldName(currentFieldIndex)} input done", Toast.LENGTH_SHORT).show()
                         isListening = false
+
+                        // Auto-advance to the next field (e.g., from Description to Medication)
+                        currentFieldIndex++
+                        if (currentFieldIndex < voiceEnabledFields.size) {
+                            Handler(Looper.getMainLooper()).postDelayed({
+                                startVoiceInputAtIndex(currentFieldIndex)
+                            }, 1000)
+                        } else {
+                            Toast.makeText(this, "All fields completed!", Toast.LENGTH_LONG).show()
+                            currentFieldIndex = 0
+                        }
                         return
                     }
 
