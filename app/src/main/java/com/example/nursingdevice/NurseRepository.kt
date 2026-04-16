@@ -47,7 +47,7 @@ interface NurseApiService {
 }
 
 class NurseRepository {
-    private val BASE_URL = "https://nursing-backend-vp5o.onrender.com"
+    private val BASE_URL = "https://nfc-backend-ostp.onrender.com/"
     private val api: NurseApiService
 
     init {
