@@ -8,7 +8,6 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import java.io.File
 
 class SendDocumentActivity : AppCompatActivity() {
 
@@ -27,30 +26,23 @@ class SendDocumentActivity : AppCompatActivity() {
         detailedLogText = findViewById(R.id.syncStatusText)
         logScrollView = findViewById(R.id.logScrollView)
 
-        val filePath = intent.getStringExtra("FILE_PATH")
         val fileName = intent.getStringExtra("FILE_NAME")
+        val fileContent = intent.getStringExtra("FILE_CONTENT")
 
-        if (filePath != null) {
-            handleMedicalDataFile(filePath, fileName)
+        if (fileContent != null) {
+            handleMedicalDataFile(fileContent, fileName)
         } else {
             Toast.makeText(this, "Error: No file to send", Toast.LENGTH_SHORT).show()
             finish()
         }
     }
 
-    private fun handleMedicalDataFile(filePath: String, fileName: String?) {
+    private fun handleMedicalDataFile(fileContentText: String, fileName: String?) {
         try {
-            val file = File(filePath)
-            if (!file.exists()) {
-                Toast.makeText(this, "Error: File not found", Toast.LENGTH_SHORT).show()
-                finish()
-                return
-            }
-
-            val fileContent = file.readBytes()
+            val fileContent = fileContentText.toByteArray(Charsets.UTF_8)
             MyHostApduService.setFileForTransfer(fileContent, "text/plain")
 
-            val displayName = fileName ?: file.name
+            val displayName = fileName ?: "medical_update.txt"
             headerStatusText.text = "Waiting for Receiver..."
             fileNameText.text = "Payload: $displayName\nSize: ${fileContent.size} bytes"
             detailedLogText.text = "Ready to transmit. Hold near reader.\n"
@@ -90,13 +82,10 @@ class SendDocumentActivity : AppCompatActivity() {
 
     private fun onTransferComplete() {
         // Record to session history only after successful NFC transfer
-        val filePath = intent.getStringExtra("FILE_PATH")
-        if (filePath != null) {
-            val file = File(filePath)
-            if (file.exists()) {
-                SessionCache.addUpdatedRecord(file.readText())
-                file.delete()
-            }
+        val fileContent = intent.getStringExtra("FILE_CONTENT")
+        if (fileContent != null) {
+            SessionCache.addUpdatedRecord(fileContent)
+            NursePatientManager(this).addSessionRecord(fileContent, intent.getStringExtra("FILE_NAME"))
         }
 
         Toast.makeText(this, "Data synced successfully", Toast.LENGTH_SHORT).show()

@@ -14,7 +14,6 @@ import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -51,7 +50,7 @@ class SendForm : AppCompatActivity(), RecognitionListener {
     private lateinit var voiceMedicationBtn: ImageButton
     private lateinit var voiceDescriptionBtn: ImageButton
 
-    private var generatedFile: File? = null
+    private var generatedFileName: String? = null
     private var fileContent: String = ""
 
     private var currentFieldIndex: Int = 0
@@ -334,9 +333,7 @@ class SendForm : AppCompatActivity(), RecognitionListener {
         val fileName = "medical_data_${name.replace(" ", "_")}.txt"
 
         try {
-            generatedFile = File(cacheDir, fileName)
-            generatedFile?.writeText(fileContent)
-
+            generatedFileName = fileName
             showPreview(fileName)
             Toast.makeText(this, "Record ready for NFC transfer", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
@@ -357,10 +354,10 @@ class SendForm : AppCompatActivity(), RecognitionListener {
     }
 
     private fun sendViaNfc() {
-        if (generatedFile == null) return
+        val fileName = generatedFileName ?: return
         val intent = Intent(this, SendDocumentActivity::class.java)
-        intent.putExtra("FILE_PATH", generatedFile?.absolutePath)
-        intent.putExtra("FILE_NAME", generatedFile?.name)
+        intent.putExtra("FILE_NAME", fileName)
+        intent.putExtra("FILE_CONTENT", fileContent)
         startActivity(intent)
     }
 

@@ -9,8 +9,7 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import java.io.File
-import java.io.FileOutputStream
+import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.nio.ByteBuffer
 
@@ -122,27 +121,26 @@ class FetchRecordActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
 
     private fun handleFileReception(isoDep: IsoDep, fileInfoPayload: ByteArray) {
         val fileSize = ByteBuffer.wrap(fileInfoPayload.copyOfRange(0, 4)).int
-        val tempFile = File(cacheDir, "temp_fetched.txt")
         var receivedBytes = 0
 
         try {
-            FileOutputStream(tempFile).use { fos ->
-                while (receivedBytes < fileSize) {
-                    val response = isoDep.transceive(Utils.GET_NEXT_DATA_CHUNK_COMMAND)
+            val output = ByteArrayOutputStream()
+            while (receivedBytes < fileSize) {
+                val response = isoDep.transceive(Utils.GET_NEXT_DATA_CHUNK_COMMAND)
 
-                    if (response.size <= 2) throw IOException("Transfer interrupted by sender.")
+                if (response.size <= 2) throw IOException("Transfer interrupted by sender.")
 
-                    val decryptedChunk = CryptoUtils.xorEncryptDecrypt(response.copyOfRange(0, response.size - 2), sessionKey!!)
-                    fos.write(decryptedChunk)
-                    receivedBytes += decryptedChunk.size
+                val decryptedChunk = CryptoUtils.xorEncryptDecrypt(response.copyOfRange(0, response.size - 2), sessionKey!!)
+                output.write(decryptedChunk)
+                receivedBytes += decryptedChunk.size
 
-                    val progress = if (fileSize > 0) (receivedBytes * 100 / fileSize) else 0
-                    logStep("Transferring: $receivedBytes / $fileSize bytes ($progress%)")
-                }
+                val progress = if (fileSize > 0) (receivedBytes * 100 / fileSize) else 0
+                logStep("Transferring: $receivedBytes / $fileSize bytes ($progress%)")
             }
 
-            val fetchedText = tempFile.readText(Charsets.UTF_8)
-            SessionCache.fetchedRecordData = fetchedText
+            val fetchedText = output.toString(Charsets.UTF_8.name())
+            SessionCache.setFetchedRecord(fetchedText)
+            NursePatientManager(this).saveFetchedRecord(fetchedText)
 
             runOnUiThread {
                 statusTextView?.text = "Fetch Complete"
@@ -151,14 +149,14 @@ class FetchRecordActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
                 Toast.makeText(this, "Record Fetched! Press back to view.", Toast.LENGTH_LONG).show()
             }
         } catch (e: Exception) {
-            tempFile.delete()
             throw e
         }
     }
 
     private fun handleTextReception(payload: ByteArray) {
         val fetchedText = String(payload, Charsets.UTF_8)
-        SessionCache.fetchedRecordData = fetchedText
+        SessionCache.setFetchedRecord(fetchedText)
+        NursePatientManager(this).saveFetchedRecord(fetchedText)
 
         runOnUiThread {
             statusTextView?.text = "Fetch Complete"

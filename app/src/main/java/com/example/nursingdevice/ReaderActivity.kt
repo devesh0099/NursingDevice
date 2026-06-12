@@ -1,7 +1,6 @@
 package com.example.nursingdevice
 
 import android.content.Intent
-import android.net.Uri
 import android.nfc.NfcAdapter
 import android.nfc.Tag
 import android.nfc.tech.IsoDep
@@ -11,8 +10,7 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import java.io.File
-import java.io.FileOutputStream
+import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.nio.ByteBuffer
 
@@ -160,42 +158,36 @@ class ReaderActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
         val fileName = String(fileInfoPayload.copyOfRange(4, fileInfoPayload.size), Charsets.UTF_8)
 
         logStep("Downloading: $fileName (${String.format("%.2f", fileSize / 1024.0)} KB)")
-        val tempFile = File(cacheDir, fileName)
         var receivedBytes = 0
 
         try {
-            FileOutputStream(tempFile).use { fos ->
-                var chunkCount = 0
-                while (receivedBytes < fileSize && chunkCount < MAX_CHUNK_COUNT) {
-                    val response = isoDep.transceive(Utils.GET_NEXT_DATA_CHUNK_COMMAND)
-                    if (!response.isSuccess()) break
+            val output = ByteArrayOutputStream()
+            var chunkCount = 0
+            while (receivedBytes < fileSize && chunkCount < MAX_CHUNK_COUNT) {
+                val response = isoDep.transceive(Utils.GET_NEXT_DATA_CHUNK_COMMAND)
+                if (!response.isSuccess()) break
 
-                    val encryptedChunk = response.getData()
-                    val decryptedChunk = CryptoUtils.xorEncryptDecrypt(encryptedChunk, sessionKey!!)
+                val encryptedChunk = response.getData()
+                val decryptedChunk = CryptoUtils.xorEncryptDecrypt(encryptedChunk, sessionKey!!)
 
-                    fos.write(decryptedChunk)
-                    receivedBytes += decryptedChunk.size
-                    chunkCount++
+                output.write(decryptedChunk)
+                receivedBytes += decryptedChunk.size
+                chunkCount++
 
-                    val progress = (receivedBytes * 100 / fileSize)
-                    logStep("Transferring: ${String.format("%.2f", receivedBytes / 1024.0)} / ${String.format("%.2f", fileSize / 1024.0)} KB ($progress%)")
-                }
+                val progress = (receivedBytes * 100 / fileSize)
+                logStep("Transferring: ${String.format("%.2f", receivedBytes / 1024.0)} / ${String.format("%.2f", fileSize / 1024.0)} KB ($progress%)")
             }
 
-            displayFileInView(tempFile)
+            displayContent(output.toString(Charsets.UTF_8.name()))
             logStep("Transfer Securely Completed.")
             runOnUiThread { statusTextView?.text = "Transfer Complete" }
 
         } catch (e: Exception) {
-            tempFile.delete()
             throw e
         }
     }
 
     private fun handleMultiFileReception(isoDep: IsoDep) {
-        val fileName = "aggregated_reports.txt"
-        val tempFile = File(cacheDir, fileName)
-
         try {
             val response = isoDep.transceive(Utils.GET_FILE_INFO_COMMAND)
             if (!response.isSuccess()) throw IOException("Failed to get file metadata.")
@@ -209,29 +201,27 @@ class ReaderActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
             var receivedBytes = 0
             var chunkCount = 0
 
-            FileOutputStream(tempFile).use { fos ->
-                while (receivedBytes < fileSize && chunkCount < MAX_CHUNK_COUNT) {
-                    val chunkResponse = isoDep.transceive(Utils.GET_NEXT_DATA_CHUNK_COMMAND)
-                    if (!chunkResponse.isSuccess()) break
+            val output = ByteArrayOutputStream()
+            while (receivedBytes < fileSize && chunkCount < MAX_CHUNK_COUNT) {
+                val chunkResponse = isoDep.transceive(Utils.GET_NEXT_DATA_CHUNK_COMMAND)
+                if (!chunkResponse.isSuccess()) break
 
-                    val encryptedChunk = chunkResponse.getData()
-                    val decryptedChunk = CryptoUtils.xorEncryptDecrypt(encryptedChunk, sessionKey!!)
+                val encryptedChunk = chunkResponse.getData()
+                val decryptedChunk = CryptoUtils.xorEncryptDecrypt(encryptedChunk, sessionKey!!)
 
-                    fos.write(decryptedChunk)
-                    receivedBytes += decryptedChunk.size
-                    chunkCount++
+                output.write(decryptedChunk)
+                receivedBytes += decryptedChunk.size
+                chunkCount++
 
-                    val progress = (receivedBytes * 100 / fileSize)
-                    logStep("Transferring: ${String.format("%.2f", receivedBytes / 1024.0)} / ${String.format("%.2f", fileSize / 1024.0)} KB ($progress%)")
-                }
+                val progress = (receivedBytes * 100 / fileSize)
+                logStep("Transferring: ${String.format("%.2f", receivedBytes / 1024.0)} / ${String.format("%.2f", fileSize / 1024.0)} KB ($progress%)")
             }
 
-            displayFileInView(tempFile)
+            displayContent(output.toString(Charsets.UTF_8.name()))
             logStep("Transfer Securely Completed.")
             runOnUiThread { statusTextView?.text = "Transfer Complete" }
 
         } catch (e: Exception) {
-            tempFile.delete()
             throw e
         }
     }
@@ -241,6 +231,7 @@ class ReaderActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
         logStep("Text received securely")
 
         SessionCache.processScannedData(receivedString)
+        NursePatientManager(this).savePatient(receivedString)
 
         runOnUiThread {
             receivedDataTextView?.text = receivedString
@@ -250,11 +241,10 @@ class ReaderActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
         }
     }
 
-    private fun displayFileInView(file: File) {
+    private fun displayContent(content: String) {
         try {
-            val content = file.readText(Charsets.UTF_8)
-
             SessionCache.processScannedData(content)
+            NursePatientManager(this).savePatient(content)
 
             runOnUiThread {
                 receivedDataTextView?.text = content

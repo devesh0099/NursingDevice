@@ -81,7 +81,7 @@ class AuthActivity : AppCompatActivity() {
         lifecycleScope.launch {
             repo.login(nurseId).fold(
                 onSuccess = { data ->
-                    manager.saveNurse(Nurse(name = data.name, id = data.nurseId))
+                    manager.saveNurseData(data)
                     Toast.makeText(this@AuthActivity, "Welcome, ${data.name}!", Toast.LENGTH_SHORT).show()
                     goToMain()
                 },
@@ -110,7 +110,7 @@ class AuthActivity : AppCompatActivity() {
         lifecycleScope.launch {
             repo.register(nurseId, name, age, gender, poc, contact).fold(
                 onSuccess = { data ->
-                    manager.saveNurse(Nurse(name = data.name, id = data.nurseId))
+                    manager.saveNurseData(data)
                     Toast.makeText(this@AuthActivity, "Registered as ${data.name}", Toast.LENGTH_SHORT).show()
                     goToMain()
                 },

@@ -10,6 +10,6 @@ class ViewFetchedActivity : AppCompatActivity() {
         setContentView(R.layout.activity_view_fetched)
 
         val fetchedDataText = findViewById<TextView>(R.id.fetchedDataText)
-        fetchedDataText.text = SessionCache.fetchedRecordData
+        fetchedDataText.text = NursePatientManager(this).getLatestFetchedRecord()
     }
 }

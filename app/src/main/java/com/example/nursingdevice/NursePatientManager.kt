@@ -1,7 +1,6 @@
 package com.example.nursingdevice
 
 import android.content.Context
-import android.content.SharedPreferences
 import org.json.JSONObject
 
 data class Nurse(
@@ -18,47 +17,101 @@ data class Patient(
 )
 
 class NursePatientManager(private val context: Context) {
-    private val prefs: SharedPreferences =
-        context.getSharedPreferences("nurse_patient_prefs", Context.MODE_PRIVATE)
-
-    companion object {
-        private const val KEY_NURSE_NAME = "nurse_name"
-        private const val KEY_NURSE_ID   = "nurse_id"
-        private const val KEY_PATIENT_JSON = "patient_json"
-    }
+    private val db = NursingDeviceDatabase.getInstance(context)
 
     fun saveNurse(nurse: Nurse) {
-        prefs.edit()
-            .putString(KEY_NURSE_NAME, nurse.name)
-            .putString(KEY_NURSE_ID, nurse.id)
-            .apply()
+        db.nurseDao().clearCurrent()
+        db.nurseDao().upsert(
+            NurseEntity(
+                nurseId = nurse.id,
+                name = nurse.name,
+                isCurrent = true
+            )
+        )
+        db.nurseDao().markCurrent(nurse.id)
+    }
+
+    fun saveNurseData(data: NurseData) {
+        db.nurseDao().clearCurrent()
+        db.nurseDao().upsert(
+            NurseEntity(
+                nurseId = data.nurseId,
+                name = data.name,
+                age = data.age,
+                gender = data.gender,
+                pointOfCare = data.pointOfCare,
+                contactNo = data.contactNo,
+                isCurrent = true
+            )
+        )
+        db.nurseDao().markCurrent(data.nurseId)
     }
 
     fun getNurse(): Nurse {
-        val name = prefs.getString(KEY_NURSE_NAME, "") ?: ""
-        val id   = prefs.getString(KEY_NURSE_ID, "") ?: ""
-        return Nurse(name = name, id = id)
+        val nurse = db.nurseDao().getCurrentNurse()
+        return Nurse(name = nurse?.name.orEmpty(), id = nurse?.nurseId.orEmpty())
     }
 
     fun savePatient(patientJson: String) {
-        prefs.edit().putString(KEY_PATIENT_JSON, patientJson).apply()
+        val json = JSONObject(patientJson)
+        db.patientContextDao().upsert(
+            PatientContextEntity(
+                patientId = json.optString("patientId", "N/A"),
+                name = json.optString("name", "Unknown Patient"),
+                age = json.opt("age")?.toString() ?: "N/A",
+                gender = json.optString("gender", "N/A"),
+                bloodType = json.optString("bloodType", "N/A"),
+                rawJson = patientJson
+            )
+        )
     }
 
     fun getPatient(): Patient? {
-        val jsonStr = prefs.getString(KEY_PATIENT_JSON, null) ?: return null
+        val patient = db.patientContextDao().getCurrentPatient() ?: return null
         return try {
-            val json = JSONObject(jsonStr)
             Patient(
-                name      = json.getString("name"),
-                age       = json.getInt("age"),
-                gender    = json.getString("gender"),
-                bloodType = json.getString("bloodType"),
-                patientId = json.getString("patientId")
+                name = patient.name,
+                age = patient.age.toIntOrNull() ?: 0,
+                gender = patient.gender,
+                bloodType = patient.bloodType,
+                patientId = patient.patientId
             )
-        } catch (e: Exception) { null }
+        } catch (e: Exception) {
+            null
+        }
     }
 
     fun clearPatient() {
-        prefs.edit().remove(KEY_PATIENT_JSON).apply()
+        db.patientContextDao().clear()
     }
+
+    fun saveFetchedRecord(content: String) {
+        db.localRecordDao().insert(
+            LocalRecordEntity(
+                recordType = "FETCHED_RECORD",
+                patientId = getPatient()?.patientId,
+                nurseId = getNurse().id.ifEmpty { null },
+                fileName = "fetched_record.txt",
+                content = content
+            )
+        )
+    }
+
+    fun getLatestFetchedRecord(): String =
+        db.localRecordDao().getLatestByType("FETCHED_RECORD")?.content ?: "No record fetched yet."
+
+    fun addSessionRecord(content: String, fileName: String?) {
+        db.localRecordDao().insert(
+            LocalRecordEntity(
+                recordType = "SESSION_REPORT",
+                patientId = getPatient()?.patientId,
+                nurseId = getNurse().id.ifEmpty { null },
+                fileName = fileName,
+                content = content
+            )
+        )
+    }
+
+    fun getSessionRecords(): List<String> =
+        db.localRecordDao().getRecordsByType("SESSION_REPORT").map { it.content }.reversed()
 }

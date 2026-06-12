@@ -53,6 +53,28 @@ object SessionCache {
         sessionHistory.add(report)
     }
 
+    fun loadPatient(patient: Patient?) {
+        if (patient == null) {
+            currentPatientRawData = null
+            currentPatientName = "None"
+            currentPatientAge = ""
+            currentPatientGender = ""
+            currentPatientBloodType = ""
+            currentPatientId = ""
+            return
+        }
+
+        currentPatientName = patient.name
+        currentPatientAge = patient.age.toString()
+        currentPatientGender = patient.gender
+        currentPatientBloodType = patient.bloodType
+        currentPatientId = patient.patientId
+    }
+
+    fun setFetchedRecord(data: String) {
+        fetchedRecordData = data
+    }
+
     fun clearSession() {
         currentPatientRawData = null
         currentPatientName = "None"

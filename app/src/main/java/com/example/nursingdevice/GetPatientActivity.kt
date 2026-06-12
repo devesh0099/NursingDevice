@@ -15,11 +15,11 @@ class GetPatientActivity : AppCompatActivity() {
 
         statusText.text = "Current Session History"
 
-        if (SessionCache.sessionHistory.isEmpty()) {
+        val sessionRecords = NursePatientManager(this).getSessionRecords()
+        if (sessionRecords.isEmpty()) {
             receivedDataText.text = "No records have been updated during this session."
         } else {
-            // Join all session reports together with a divider for easy reading
-            receivedDataText.text = SessionCache.sessionHistory.joinToString("\n\n------------------------\n\n")
+            receivedDataText.text = sessionRecords.joinToString("\n\n------------------------\n\n")
         }
     }
 }

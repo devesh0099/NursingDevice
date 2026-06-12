@@ -56,7 +56,13 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        val nurse = NursePatientManager(this).getNurse()
+        val manager = NursePatientManager(this)
+        SessionCache.loadPatient(manager.getPatient())
+        SessionCache.setFetchedRecord(manager.getLatestFetchedRecord())
+        SessionCache.sessionHistory.clear()
+        SessionCache.sessionHistory.addAll(manager.getSessionRecords())
+
+        val nurse = manager.getNurse()
         val nurseLabel = if (nurse.name.isNotEmpty()) "Nurse: ${nurse.name}" else "Not logged in"
 
         if (SessionCache.currentPatientName == "None") {
