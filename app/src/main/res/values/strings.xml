@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Nursing Device</string>
+    <string name="app_name">CAD</string>
     <string name="servicedesc">Nursing Device HCE Service</string>
     <string name="aiddescription">Nursing Device File and Text Transfer</string>
     <string-array name="blood_groups">

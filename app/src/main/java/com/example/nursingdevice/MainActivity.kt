@@ -13,6 +13,7 @@ class MainActivity : AppCompatActivity() {
 
     private var storagePermission: StoragePermission? = null
     private lateinit var sendMedicalFormButton: MaterialButton
+    private lateinit var fetchEntireHistoryButton: MaterialButton
     private lateinit var nurseText: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -21,6 +22,7 @@ class MainActivity : AppCompatActivity() {
 
         nurseText = findViewById(R.id.nurseText)
         sendMedicalFormButton = findViewById(R.id.SendMedicalFormButton)
+        fetchEntireHistoryButton = findViewById(R.id.fetchEntireHistoryBtn)
         val scanPatientTagButton = findViewById<Button>(R.id.ScanPatientTagButton)
         val getPatientBtn = findViewById<Button>(R.id.getPatientBtn)
 
@@ -29,6 +31,10 @@ class MainActivity : AppCompatActivity() {
 
         fetchRecordBtn.setOnClickListener {
             startActivity(Intent(this, FetchRecordActivity::class.java))
+        }
+
+        fetchEntireHistoryButton.setOnClickListener {
+            startActivity(Intent(this, FetchEntireHistoryActivity::class.java))
         }
 
         viewFetchedBtn.setOnClickListener {
@@ -68,13 +74,17 @@ class MainActivity : AppCompatActivity() {
         if (SessionCache.currentPatientName == "None") {
             nurseText.text = "$nurseLabel | No Patient Scanned"
             sendMedicalFormButton.isEnabled = false
+            fetchEntireHistoryButton.isEnabled = false
             sendMedicalFormButton.text = "Scan a Patient Tag First"
             sendMedicalFormButton.alpha = 0.5f
+            fetchEntireHistoryButton.alpha = 0.5f
         } else {
             nurseText.text = "$nurseLabel | Patient: ${SessionCache.currentPatientName}"
             sendMedicalFormButton.isEnabled = true
+            fetchEntireHistoryButton.isEnabled = true
             sendMedicalFormButton.text = "Update Patient Record"
             sendMedicalFormButton.alpha = 1.0f
+            fetchEntireHistoryButton.alpha = 1.0f
         }
     }
 

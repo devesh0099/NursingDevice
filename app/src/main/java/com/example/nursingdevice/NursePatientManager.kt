@@ -90,7 +90,7 @@ class NursePatientManager(private val context: Context) {
             LocalRecordEntity(
                 recordType = "FETCHED_RECORD",
                 patientId = getPatient()?.patientId,
-                nurseId = getNurse().id.ifEmpty { null },
+                nurseId = getNurse().id.takeIf { it.isNotBlank() },
                 fileName = "fetched_record.txt",
                 content = content
             )
@@ -100,12 +100,63 @@ class NursePatientManager(private val context: Context) {
     fun getLatestFetchedRecord(): String =
         db.localRecordDao().getLatestByType("FETCHED_RECORD")?.content ?: "No record fetched yet."
 
+    fun saveCloudHistory(content: String, fileName: String, patientId: String) {
+        val existing = db.localRecordDao().getByTypeAndFileName("CLOUD_HISTORY", fileName)
+        db.localRecordDao().insert(
+            LocalRecordEntity(
+                id = existing?.id ?: 0,
+                recordType = "CLOUD_HISTORY",
+                patientId = patientId,
+                nurseId = getNurse().id.takeIf { it.isNotBlank() },
+                fileName = fileName,
+                content = content
+            )
+        )
+    }
+
+    fun getLatestCloudHistory(): String =
+        db.localRecordDao().getLatestByType("CLOUD_HISTORY")?.content ?: "No cloud history fetched yet."
+
+    fun getCloudHistoryDates(patientId: String): List<String> =
+        db.localRecordDao()
+            .getRecordsByTypeAndPatient("CLOUD_HISTORY", patientId)
+            .mapNotNull { record ->
+                record.fileName
+                    ?.removeSuffix(".txt")
+                    ?.substringAfterLast('_', "")
+                    ?.takeIf { it.isNotBlank() }
+            }
+            .distinct()
+
+    fun getCloudHistoryBlocks(patientId: String, date: String): List<CloudHistoryBlock> {
+        val history = db.localRecordDao()
+            .getRecordsByTypeAndPatient("CLOUD_HISTORY", patientId)
+            .firstOrNull { record ->
+                record.fileName?.removeSuffix(".txt")?.endsWith("_$date") == true
+            } ?: return emptyList()
+
+        return history.content
+            .split(Regex("\\n\\n=+\\n\\n"))
+            .mapIndexedNotNull { index, block ->
+                val trimmed = block.trim()
+                if (trimmed.isBlank()) {
+                    null
+                } else {
+                    CloudHistoryBlock(
+                        title = "Record ${index + 1}",
+                        content = trimmed,
+                        updatedAt = history.createdAt
+                    )
+                }
+            }
+    }
+
     fun addSessionRecord(content: String, fileName: String?) {
         db.localRecordDao().insert(
             LocalRecordEntity(
                 recordType = "SESSION_REPORT",
                 patientId = getPatient()?.patientId,
-                nurseId = getNurse().id.ifEmpty { null },
+                nurseId = getNurse().id.takeIf { it.isNotBlank() },
                 fileName = fileName,
                 content = content
             )
@@ -115,3 +166,9 @@ class NursePatientManager(private val context: Context) {
     fun getSessionRecords(): List<String> =
         db.localRecordDao().getRecordsByType("SESSION_REPORT").map { it.content }.reversed()
 }
+
+data class CloudHistoryBlock(
+    val title: String,
+    val content: String,
+    val updatedAt: Long
+)

@@ -97,9 +97,9 @@ class AuthActivity : AppCompatActivity() {
         val nurseId = nurseIdInput.text.toString().trim()
         val name    = nameInput.text.toString().trim()
         val age     = ageInput.text.toString().trim().toIntOrNull()
-        val gender  = genderInput.text.toString().trim().ifEmpty { null }
+        val gender  = genderInput.text.toString().trim().takeIf { it.isNotBlank() }
         val poc     = pocValues[pocSpinner.selectedItemPosition]
-        val contact = contactInput.text.toString().trim().ifEmpty { null }
+        val contact = contactInput.text.toString().trim().takeIf { it.isNotBlank() }
 
         if (nurseId.isEmpty() || name.isEmpty()) {
             Toast.makeText(this, "Nurse ID and Name are required", Toast.LENGTH_SHORT).show()

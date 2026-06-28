@@ -58,6 +58,14 @@
             android:exported="false" />
 
         <activity
+            android:name=".FetchEntireHistoryActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".ViewCloudHistoryRecordActivity"
+            android:exported="false" />
+
+        <activity
             android:name=".ViewFetchedActivity"
             android:exported="false" />
 
