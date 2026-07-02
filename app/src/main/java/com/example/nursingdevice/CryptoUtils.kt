@@ -1,10 +1,14 @@
 package com.example.nursingdevice
 
 import android.util.Base64
+import android.util.Log
+import java.io.ByteArrayInputStream
 import java.security.KeyFactory
 import java.security.PrivateKey
 import java.security.PublicKey
 import java.security.Signature
+import java.security.cert.CertificateFactory
+import java.security.cert.X509Certificate
 import java.security.spec.PKCS8EncodedKeySpec
 import java.security.spec.X509EncodedKeySpec
 import javax.crypto.Cipher
@@ -84,4 +88,84 @@ object CryptoUtils {
         }
         return output
     }
+
+    // ------------------------------------------------------------------------
+    // Phase 3 — credential-backed keys + certificate verification.
+    //
+    // When CERT_AUTH_ENABLED is true, the NFC handshake should use the per-device
+    // credential (loaded via CredentialStore.unlock at login) and verify the
+    // peer's certificate against the stored CA cert, instead of the hardcoded
+    // MY_PRIVATE_KEY_STR / OTHER_PUBLIC_KEY_STR pair.
+    //
+    // Flag defaults to false so the existing (working, hardcoded-key) handshake is
+    // preserved until the cert-exchange step is integrated and tested on hardware.
+    // See CREDENTIALS_AND_STORAGE_PLAN.md §8 / PHASE_2_3_DEVICE_TESTING.md.
+    // ------------------------------------------------------------------------
+
+    // Cert-based mutual auth is fully wired (cert exchange on all endpoints).
+    // Requires BOTH devices registered + logged in (credential loaded in memory).
+    // Set to false on BOTH apps to fall back to the legacy hardcoded-key handshake.
+    const val CERT_AUTH_ENABLED = true
+
+    // APDU command for the added cert-exchange step (reader -> card).
+    val CMD_AUTH_SEND_CERT = "AUTH_CRT".toByteArray(Charsets.UTF_8)
+
+    /** This device's private key from the unlocked credential, or null if locked. */
+    fun getSessionPrivateKey(): PrivateKey? {
+        val b64 = CredentialHolder.current?.privateKeyB64 ?: return null
+        val spec = PKCS8EncodedKeySpec(Base64.decode(b64, Base64.DEFAULT))
+        return KeyFactory.getInstance("RSA").generatePrivate(spec)
+    }
+
+    /** This device's own certificate (PEM) to present to a peer, or null. */
+    fun getMyCertificatePem(): String? = CredentialHolder.current?.certPem
+
+    /** The CA certificate (PEM) this device trusts, or null. */
+    fun getCaCertificatePem(): String? = CredentialHolder.current?.caCertPem
+
+    private fun parseCert(pem: String): X509Certificate =
+        CertificateFactory.getInstance("X.509")
+            .generateCertificate(ByteArrayInputStream(pem.toByteArray(Charsets.UTF_8))) as X509Certificate
+
+    /**
+     * Verify a peer's certificate against our stored CA cert and return the peer's
+     * public key. Throws PeerCertException with an EXACT, human-readable reason on
+     * any failure, so the NFC UI/logs can show precisely what went wrong.
+     */
+    fun verifyPeerCert(peerCertPem: String): PublicKey {
+        val caPem = getCaCertificatePem()
+            ?: throw PeerCertException("no CA certificate on this device — log in with your PIN first")
+
+        val ca = try { parseCert(caPem) }
+            catch (e: Exception) { throw PeerCertException("stored CA certificate is unreadable: ${e.message}") }
+
+        val peer = try { parseCert(peerCertPem) }
+            catch (e: Exception) { throw PeerCertException("peer sent a malformed certificate: ${e.message}") }
+
+        try {
+            peer.verify(ca.publicKey)
+        } catch (e: java.security.SignatureException) {
+            throw PeerCertException("peer certificate is NOT signed by the trusted CA (untrusted / different CA)")
+        } catch (e: Exception) {
+            throw PeerCertException("could not verify peer certificate signature: ${e.message}")
+        }
+
+        try {
+            peer.checkValidity()
+        } catch (e: java.security.cert.CertificateExpiredException) {
+            throw PeerCertException("peer certificate expired on ${peer.notAfter}")
+        } catch (e: java.security.cert.CertificateNotYetValidException) {
+            throw PeerCertException("peer certificate not valid until ${peer.notBefore} (check device clock)")
+        }
+
+        return peer.publicKey
+    }
+
+    /** Null-returning convenience wrapper around [verifyPeerCert] (logs the reason). */
+    fun verifyPeerCertAndExtractKey(peerCertPem: String): PublicKey? =
+        try { verifyPeerCert(peerCertPem) }
+        catch (e: Exception) { Log.e("CryptoUtils", "Peer cert rejected: ${e.message}"); null }
 }
+
+/** Thrown when a peer's NFC certificate cannot be trusted. Message states the exact reason. */
+class PeerCertException(message: String) : Exception(message)

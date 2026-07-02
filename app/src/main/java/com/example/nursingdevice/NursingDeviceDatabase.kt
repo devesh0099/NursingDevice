@@ -10,112 +10,82 @@ import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import net.sqlcipher.database.SQLiteDatabase
+import net.sqlcipher.database.SupportFactory
 
-@Entity(tableName = "nurses")
-data class NurseEntity(
-    @PrimaryKey val nurseId: String,
-    val name: String,
-    val age: Int? = null,
-    val gender: String? = null,
-    val pointOfCare: String? = null,
-    val contactNo: String? = null,
-    val isCurrent: Boolean = false,
-    val updatedAt: Long = System.currentTimeMillis()
-)
-
-@Entity(tableName = "patient_context")
-data class PatientContextEntity(
-    @PrimaryKey val singletonId: Int = 1,
-    val patientId: String,
-    val name: String,
-    val age: String,
-    val gender: String,
-    val bloodType: String,
-    val rawJson: String,
-    val scannedAt: Long = System.currentTimeMillis()
-)
-
-@Entity(tableName = "local_records")
-data class LocalRecordEntity(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    val recordType: String,
-    val patientId: String? = null,
-    val nurseId: String? = null,
-    val fileName: String? = null,
-    val content: String,
-    val createdAt: Long = System.currentTimeMillis()
+/**
+ * CAD encrypted store — CREDENTIALS ONLY.
+ *
+ * Per the design decision (CREDENTIALS_AND_STORAGE_PLAN.md §4): on the CAD, the
+ * ONLY thing persisted to disk is the nurse's credential, encrypted at rest with
+ * SQLCipher. Everything else (scanned patient context, vitals, fetched records)
+ * lives in cache / in-memory (see NursePatientManager) and never touches disk in
+ * plaintext.
+ *
+ * The database is opened with a PIN-derived passphrase (see PinCrypto); a wrong
+ * PIN makes SQLCipher fail to open, which surfaces as "incorrect PIN".
+ */
+@Entity(tableName = "credentials")
+data class CredentialEntity(
+    @PrimaryKey val ownerId: String,   // nurseId
+    val role: String,                  // "nurse"
+    val privateKeyB64: String,         // Kpri, PKCS#8 DER base64
+    val publicKeyB64: String,          // Kpub, SPKI DER base64
+    val certPem: String,               // CA-signed cert (PEM)
+    val caCertPem: String,             // trust anchor for verifying peers
+    val issuedAt: Long = 0,
+    val expiresAt: Long = 0
 )
 
 @Dao
-interface NurseDao {
+interface CredentialDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    fun upsert(nurse: NurseEntity)
+    fun upsert(credential: CredentialEntity)
 
-    @Query("UPDATE nurses SET isCurrent = 0")
-    fun clearCurrent()
+    @Query("SELECT * FROM credentials LIMIT 1")
+    fun getCredential(): CredentialEntity?
 
-    @Query("UPDATE nurses SET isCurrent = 1 WHERE nurseId = :nurseId")
-    fun markCurrent(nurseId: String)
-
-    @Query("SELECT * FROM nurses WHERE isCurrent = 1 LIMIT 1")
-    fun getCurrentNurse(): NurseEntity?
-}
-
-@Dao
-interface PatientContextDao {
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    fun upsert(patient: PatientContextEntity)
-
-    @Query("SELECT * FROM patient_context WHERE singletonId = 1 LIMIT 1")
-    fun getCurrentPatient(): PatientContextEntity?
-
-    @Query("DELETE FROM patient_context")
+    @Query("DELETE FROM credentials")
     fun clear()
 }
 
-@Dao
-interface LocalRecordDao {
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    fun insert(record: LocalRecordEntity): Long
-
-    @Query("SELECT * FROM local_records WHERE recordType = :recordType ORDER BY createdAt DESC")
-    fun getRecordsByType(recordType: String): List<LocalRecordEntity>
-
-    @Query("SELECT * FROM local_records WHERE recordType = :recordType AND patientId = :patientId ORDER BY createdAt DESC")
-    fun getRecordsByTypeAndPatient(recordType: String, patientId: String): List<LocalRecordEntity>
-
-    @Query("SELECT * FROM local_records WHERE recordType = :recordType ORDER BY createdAt DESC LIMIT 1")
-    fun getLatestByType(recordType: String): LocalRecordEntity?
-
-    @Query("SELECT * FROM local_records WHERE recordType = :recordType AND fileName = :fileName LIMIT 1")
-    fun getByTypeAndFileName(recordType: String, fileName: String): LocalRecordEntity?
-}
-
-@Database(
-    entities = [NurseEntity::class, PatientContextEntity::class, LocalRecordEntity::class],
-    version = 1,
-    exportSchema = false
-)
+@Database(entities = [CredentialEntity::class], version = 1, exportSchema = false)
 abstract class NursingDeviceDatabase : RoomDatabase() {
-    abstract fun nurseDao(): NurseDao
-    abstract fun patientContextDao(): PatientContextDao
-    abstract fun localRecordDao(): LocalRecordDao
+    abstract fun credentialDao(): CredentialDao
 
     companion object {
         @Volatile
         private var INSTANCE: NursingDeviceDatabase? = null
 
-        fun getInstance(context: Context): NursingDeviceDatabase =
+        /**
+         * Open (once) the encrypted credential DB with a PIN-derived passphrase.
+         * SupportFactory zeroes the passphrase array it is given, so we hand it a copy.
+         */
+        fun getInstance(context: Context, passphrase: ByteArray): NursingDeviceDatabase =
             INSTANCE ?: synchronized(this) {
-                INSTANCE ?: Room.databaseBuilder(
-                    context.applicationContext,
-                    NursingDeviceDatabase::class.java,
-                    "nursing_device_room.db"
-                )
-                    .fallbackToDestructiveMigration()
-                    .allowMainThreadQueries()
-                    .build()
-                    .also { INSTANCE = it }
+                INSTANCE ?: build(context, passphrase).also { INSTANCE = it }
             }
+
+        private fun build(context: Context, passphrase: ByteArray): NursingDeviceDatabase {
+            SQLiteDatabase.loadLibs(context)
+            val factory = SupportFactory(passphrase.copyOf())
+            return Room.databaseBuilder(
+                context.applicationContext,
+                NursingDeviceDatabase::class.java,
+                "nursing_device_creds.db"
+            )
+                .openHelperFactory(factory)
+                .fallbackToDestructiveMigration()
+                .allowMainThreadQueries()
+                .build()
+        }
+
+        /** Drop the cached handle (e.g. on logout) so a different PIN can re-open. */
+        fun reset() {
+            synchronized(this) {
+                INSTANCE?.close()
+                INSTANCE = null
+            }
+        }
     }
 }

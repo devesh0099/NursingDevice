@@ -2,6 +2,7 @@ package com.example.nursingdevice
 
 import android.content.Context
 import org.json.JSONObject
+import java.io.File
 
 data class Nurse(
     val name: String = "",
@@ -16,155 +17,143 @@ data class Patient(
     val patientId: String
 )
 
+/**
+ * CAD non-credential storage.
+ *
+ * Per the design decision (CREDENTIALS_AND_STORAGE_PLAN.md §4), the CAD's
+ * encrypted Room holds ONLY the credential. Everything here lives OFF the
+ * encrypted DB:
+ *   - nurse profile        -> SharedPreferences (identity, not patient data)
+ *   - scanned patient       -> in-memory SessionCache (never persisted to disk)
+ *   - fetched / session      -> app cacheDir files (OS-clearable cache)
+ *
+ * Public method signatures are unchanged from the previous Room-backed version,
+ * so existing activities keep compiling.
+ */
 class NursePatientManager(private val context: Context) {
-    private val db = NursingDeviceDatabase.getInstance(context)
+
+    private val prefs = context.getSharedPreferences("cad_nurse_profile", Context.MODE_PRIVATE)
+    private val cloudDir: File by lazy { File(context.cacheDir, "cloud_history").apply { mkdirs() } }
+    private val fetchedFile: File by lazy { File(context.cacheDir, "fetched_record.txt") }
+
+    // --- Nurse profile (SharedPreferences) ---
 
     fun saveNurse(nurse: Nurse) {
-        db.nurseDao().clearCurrent()
-        db.nurseDao().upsert(
-            NurseEntity(
-                nurseId = nurse.id,
-                name = nurse.name,
-                isCurrent = true
-            )
-        )
-        db.nurseDao().markCurrent(nurse.id)
+        prefs.edit()
+            .putString("nurseId", nurse.id)
+            .putString("name", nurse.name)
+            .apply()
     }
 
     fun saveNurseData(data: NurseData) {
-        db.nurseDao().clearCurrent()
-        db.nurseDao().upsert(
-            NurseEntity(
-                nurseId = data.nurseId,
-                name = data.name,
-                age = data.age,
-                gender = data.gender,
-                pointOfCare = data.pointOfCare,
-                contactNo = data.contactNo,
-                isCurrent = true
-            )
-        )
-        db.nurseDao().markCurrent(data.nurseId)
+        prefs.edit()
+            .putString("nurseId", data.nurseId)
+            .putString("name", data.name)
+            .putString("age", data.age?.toString())
+            .putString("gender", data.gender)
+            .putString("pointOfCare", data.pointOfCare)
+            .putString("contactNo", data.contactNo)
+            .apply()
     }
 
-    fun getNurse(): Nurse {
-        val nurse = db.nurseDao().getCurrentNurse()
-        return Nurse(name = nurse?.name.orEmpty(), id = nurse?.nurseId.orEmpty())
-    }
+    fun getNurse(): Nurse =
+        Nurse(
+            name = prefs.getString("name", "").orEmpty(),
+            id = prefs.getString("nurseId", "").orEmpty()
+        )
+
+    // --- Scanned patient context (in-memory only) ---
 
     fun savePatient(patientJson: String) {
-        val json = JSONObject(patientJson)
-        db.patientContextDao().upsert(
-            PatientContextEntity(
-                patientId = json.optString("patientId", "N/A"),
-                name = json.optString("name", "Unknown Patient"),
-                age = json.opt("age")?.toString() ?: "N/A",
-                gender = json.optString("gender", "N/A"),
-                bloodType = json.optString("bloodType", "N/A"),
-                rawJson = patientJson
-            )
-        )
+        // Parse + hold in memory; nothing patient-related is written to disk.
+        SessionCache.processScannedData(patientJson)
     }
 
     fun getPatient(): Patient? {
-        val patient = db.patientContextDao().getCurrentPatient() ?: return null
-        return try {
-            Patient(
-                name = patient.name,
-                age = patient.age.toIntOrNull() ?: 0,
-                gender = patient.gender,
-                bloodType = patient.bloodType,
-                patientId = patient.patientId
-            )
-        } catch (e: Exception) {
-            null
-        }
+        val id = SessionCache.currentPatientId
+        if (id.isBlank() || id == "N/A") return null
+        return Patient(
+            name = SessionCache.currentPatientName,
+            age = SessionCache.currentPatientAge.toIntOrNull() ?: 0,
+            gender = SessionCache.currentPatientGender,
+            bloodType = SessionCache.currentPatientBloodType,
+            patientId = id
+        )
     }
 
     fun clearPatient() {
-        db.patientContextDao().clear()
+        SessionCache.loadPatient(null)
     }
 
+    // --- Fetched record (single cache file) ---
+
     fun saveFetchedRecord(content: String) {
-        db.localRecordDao().insert(
-            LocalRecordEntity(
-                recordType = "FETCHED_RECORD",
-                patientId = getPatient()?.patientId,
-                nurseId = getNurse().id.takeIf { it.isNotBlank() },
-                fileName = "fetched_record.txt",
-                content = content
-            )
-        )
+        runCatching { fetchedFile.writeText(content) }
     }
 
     fun getLatestFetchedRecord(): String =
-        db.localRecordDao().getLatestByType("FETCHED_RECORD")?.content ?: "No record fetched yet."
+        runCatching { fetchedFile.readText() }.getOrNull()?.takeIf { it.isNotBlank() }
+            ?: "No record fetched yet."
+
+    // --- Cloud history (cache files, one per fetched file, scoped by patientId) ---
+
+    private fun cloudFile(patientId: String, fileName: String) =
+        File(cloudDir, "${patientId}__${fileName}")
+
+    // Strip the "<patientId>__" prefix back to the original fileName.
+    private fun originalName(f: File, patientId: String) =
+        f.name.removePrefix("${patientId}__")
 
     fun saveCloudHistory(content: String, fileName: String, patientId: String) {
-        val existing = db.localRecordDao().getByTypeAndFileName("CLOUD_HISTORY", fileName)
-        db.localRecordDao().insert(
-            LocalRecordEntity(
-                id = existing?.id ?: 0,
-                recordType = "CLOUD_HISTORY",
-                patientId = patientId,
-                nurseId = getNurse().id.takeIf { it.isNotBlank() },
-                fileName = fileName,
-                content = content
-            )
-        )
+        runCatching { cloudFile(patientId, fileName).writeText(content) }
     }
 
     fun getLatestCloudHistory(): String =
-        db.localRecordDao().getLatestByType("CLOUD_HISTORY")?.content ?: "No cloud history fetched yet."
+        cloudDir.listFiles()?.maxByOrNull { it.lastModified() }
+            ?.let { runCatching { it.readText() }.getOrNull() }
+            ?.takeIf { it.isNotBlank() }
+            ?: "No cloud history fetched yet."
 
     fun getCloudHistoryDates(patientId: String): List<String> =
-        db.localRecordDao()
-            .getRecordsByTypeAndPatient("CLOUD_HISTORY", patientId)
-            .mapNotNull { record ->
-                record.fileName
-                    ?.removeSuffix(".txt")
-                    ?.substringAfterLast('_', "")
-                    ?.takeIf { it.isNotBlank() }
+        cloudDir.listFiles()
+            ?.filter { it.name.startsWith("${patientId}__") }
+            ?.mapNotNull { file ->
+                originalName(file, patientId)
+                    .removeSuffix(".txt")
+                    .substringAfterLast('_', "")
+                    .takeIf { it.isNotBlank() }
             }
-            .distinct()
+            ?.distinct()
+            ?: emptyList()
 
     fun getCloudHistoryBlocks(patientId: String, date: String): List<CloudHistoryBlock> {
-        val history = db.localRecordDao()
-            .getRecordsByTypeAndPatient("CLOUD_HISTORY", patientId)
-            .firstOrNull { record ->
-                record.fileName?.removeSuffix(".txt")?.endsWith("_$date") == true
-            } ?: return emptyList()
+        val file = cloudDir.listFiles()
+            ?.filter { it.name.startsWith("${patientId}__") }
+            ?.firstOrNull { originalName(it, patientId).removeSuffix(".txt").endsWith("_$date") }
+            ?: return emptyList()
 
-        return history.content
+        val content = runCatching { file.readText() }.getOrNull() ?: return emptyList()
+        return content
             .split(Regex("\\n\\n=+\\n\\n"))
             .mapIndexedNotNull { index, block ->
                 val trimmed = block.trim()
-                if (trimmed.isBlank()) {
-                    null
-                } else {
-                    CloudHistoryBlock(
-                        title = "Record ${index + 1}",
-                        content = trimmed,
-                        updatedAt = history.createdAt
-                    )
-                }
+                if (trimmed.isBlank()) null
+                else CloudHistoryBlock(
+                    title = "Record ${index + 1}",
+                    content = trimmed,
+                    updatedAt = file.lastModified()
+                )
             }
     }
 
+    // --- Session reports generated this visit (in-memory) ---
+
     fun addSessionRecord(content: String, fileName: String?) {
-        db.localRecordDao().insert(
-            LocalRecordEntity(
-                recordType = "SESSION_REPORT",
-                patientId = getPatient()?.patientId,
-                nurseId = getNurse().id.takeIf { it.isNotBlank() },
-                fileName = fileName,
-                content = content
-            )
-        )
+        SessionCache.addUpdatedRecord(content)
     }
 
     fun getSessionRecords(): List<String> =
-        db.localRecordDao().getRecordsByType("SESSION_REPORT").map { it.content }.reversed()
+        SessionCache.sessionHistory.toList().reversed()
 }
 
 data class CloudHistoryBlock(

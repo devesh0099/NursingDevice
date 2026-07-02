@@ -92,9 +92,18 @@ class ReaderActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
             if (!response.isSuccess()) throw IOException("AID selection failed.")
             logStep("Step 2: App Selected")
 
+            // Phase 3: exchange certificates and derive the peer's public key +
+            // our own private key; fall back to the hardcoded pair when disabled.
+            val peerPublicKey = if (CryptoUtils.CERT_AUTH_ENABLED) {
+                NfcAuth.exchangeCerts(isoDep).also { logStep("Step 2b: Certificates verified") }
+            } else CryptoUtils.getOtherPublicKey()
+            val myPrivateKey = if (CryptoUtils.CERT_AUTH_ENABLED) {
+                CryptoUtils.getSessionPrivateKey() ?: throw IOException("No credential — log in with your PIN.")
+            } else CryptoUtils.getMyPrivateKey()
+
             sessionKey = CryptoUtils.generateSessionKey()
-            val encryptedKey = CryptoUtils.rsaEncrypt(sessionKey!!, CryptoUtils.getOtherPublicKey())
-            val signature = CryptoUtils.rsaSign(encryptedKey, CryptoUtils.getMyPrivateKey())
+            val encryptedKey = CryptoUtils.rsaEncrypt(sessionKey!!, peerPublicKey)
+            val signature = CryptoUtils.rsaSign(encryptedKey, myPrivateKey)
 
             val sendKeyCmd = Utils.concatArrays(CryptoUtils.CMD_AUTH_SEND_KEY, encryptedKey)
             var authRes = isoDep.transceive(sendKeyCmd)
@@ -109,7 +118,8 @@ class ReaderActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
             val encryptedAck = authRes.getData()
             val decryptedAck = CryptoUtils.xorEncryptDecrypt(encryptedAck, sessionKey!!)
             if (String(decryptedAck, Charsets.UTF_8) != "AUTH_OK") {
-                throw IOException("Authentication rejected by the sender.")
+                throw IOException("Authentication rejected by peer — signature/credential mismatch " +
+                    "(is the other device logged in and registered under the same CA?).")
             }
 
             runOnUiThread { statusTextView?.text = "Connection Secured" }

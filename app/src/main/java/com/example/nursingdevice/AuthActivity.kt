@@ -15,6 +15,7 @@ class AuthActivity : AppCompatActivity() {
     private val repo = NurseRepository()
 
     private lateinit var nurseIdInput: EditText
+    private lateinit var pinInput: EditText
     private lateinit var loginBtn: MaterialButton
     private lateinit var toggleLink: TextView
     private lateinit var registerSection: LinearLayout
@@ -37,6 +38,7 @@ class AuthActivity : AppCompatActivity() {
         manager = NursePatientManager(this)
 
         nurseIdInput    = findViewById(R.id.nurseIdInput)
+        pinInput        = findViewById(R.id.pinInput)
         loginBtn        = findViewById(R.id.loginBtn)
         toggleLink      = findViewById(R.id.toggleLink)
         registerSection = findViewById(R.id.registerSection)
@@ -64,15 +66,36 @@ class AuthActivity : AppCompatActivity() {
 
     private fun handleLogin() {
         val nurseId = nurseIdInput.text.toString().trim()
+        val pin     = pinInput.text.toString().trim()
         if (nurseId.isEmpty()) {
             Toast.makeText(this, "Enter your Nurse ID", Toast.LENGTH_SHORT).show()
             return
         }
+        if (pin.isEmpty()) {
+            Toast.makeText(this, "Enter your PIN", Toast.LENGTH_SHORT).show()
+            return
+        }
 
-        // Check local cache first — avoids network if same nurse logs in again
+        // Unlock the encrypted credential store with the PIN. This both verifies
+        // the PIN and loads the nurse's credentials into memory for NFC use.
+        val unlock = CredentialStore.unlock(this, pin, nurseId)
+
+        // A wrong PIN is fatal for login regardless of the network path — stop here
+        // with the exact reason so the nurse knows what happened.
+        if (unlock is UnlockResult.Failed) {
+            Toast.makeText(this, "Login failed: ${unlock.reason}", Toast.LENGTH_LONG).show()
+            return
+        }
+        val noCreds = unlock is UnlockResult.NoCredential
+
+        // Local fast-path: same nurse, credentials already on this device.
         val cached = manager.getNurse()
         if (cached.id == nurseId && cached.id.isNotEmpty()) {
-            Toast.makeText(this, "Welcome back, ${cached.name}!", Toast.LENGTH_SHORT).show()
+            if (noCreds) {
+                Toast.makeText(this, "PIN OK, but no credentials on this device yet. Register or 'rotate' to provision them.", Toast.LENGTH_LONG).show()
+            } else {
+                Toast.makeText(this, "Welcome back, ${cached.name}!", Toast.LENGTH_SHORT).show()
+            }
             goToMain()
             return
         }
@@ -82,7 +105,15 @@ class AuthActivity : AppCompatActivity() {
             repo.login(nurseId).fold(
                 onSuccess = { data ->
                     manager.saveNurseData(data)
-                    Toast.makeText(this@AuthActivity, "Welcome, ${data.name}!", Toast.LENGTH_SHORT).show()
+                    if (noCreds) {
+                        Toast.makeText(
+                            this@AuthActivity,
+                            "Logged in, but no credentials on this device. Re-register or rotate to provision them.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    } else {
+                        Toast.makeText(this@AuthActivity, "Welcome, ${data.name}!", Toast.LENGTH_SHORT).show()
+                    }
                     goToMain()
                 },
                 onFailure = { err ->
@@ -95,6 +126,7 @@ class AuthActivity : AppCompatActivity() {
 
     private fun handleRegister() {
         val nurseId = nurseIdInput.text.toString().trim()
+        val pin     = pinInput.text.toString().trim()
         val name    = nameInput.text.toString().trim()
         val age     = ageInput.text.toString().trim().toIntOrNull()
         val gender  = genderInput.text.toString().trim().takeIf { it.isNotBlank() }
@@ -105,13 +137,31 @@ class AuthActivity : AppCompatActivity() {
             Toast.makeText(this, "Nurse ID and Name are required", Toast.LENGTH_SHORT).show()
             return
         }
+        if (pin.length < 4) {
+            Toast.makeText(this, "Set a PIN of at least 4 digits", Toast.LENGTH_SHORT).show()
+            return
+        }
 
         setLoading(true)
         lifecycleScope.launch {
             repo.register(nurseId, name, age, gender, poc, contact).fold(
-                onSuccess = { data ->
-                    manager.saveNurseData(data)
-                    Toast.makeText(this@AuthActivity, "Registered as ${data.name}", Toast.LENGTH_SHORT).show()
+                onSuccess = { reg ->
+                    manager.saveNurseData(reg.nurse)
+                    // Persist the server-issued credentials, encrypted under this PIN.
+                    val creds = reg.credentials
+                    if (creds?.privateKey != null) {
+                        val saved = CredentialStore.saveFromServer(
+                            this@AuthActivity, pin, nurseId, "nurse", creds
+                        )
+                        val note = if (saved) "credentials secured" else "credential save failed"
+                        Toast.makeText(this@AuthActivity, "Registered as ${reg.nurse.name} ($note)", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(
+                            this@AuthActivity,
+                            "Registered as ${reg.nurse.name}, but no credentials returned. Try 'rotate' later.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
                     goToMain()
                 },
                 onFailure = { err ->

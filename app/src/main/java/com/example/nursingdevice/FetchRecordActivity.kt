@@ -66,9 +66,17 @@ class FetchRecordActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
             if (!response.isSuccess()) throw IOException("AID selection failed.")
             logStep("Step 2: App Selected")
 
+            // Phase 3: exchange certificates for the peer public key + our private key.
+            val peerPublicKey = if (CryptoUtils.CERT_AUTH_ENABLED) {
+                NfcAuth.exchangeCerts(isoDep).also { logStep("Step 2b: Certificates verified") }
+            } else CryptoUtils.getOtherPublicKey()
+            val myPrivateKey = if (CryptoUtils.CERT_AUTH_ENABLED) {
+                CryptoUtils.getSessionPrivateKey() ?: throw IOException("No credential — log in with your PIN.")
+            } else CryptoUtils.getMyPrivateKey()
+
             sessionKey = CryptoUtils.generateSessionKey()
-            val encryptedKey = CryptoUtils.rsaEncrypt(sessionKey!!, CryptoUtils.getOtherPublicKey())
-            val signature = CryptoUtils.rsaSign(encryptedKey, CryptoUtils.getMyPrivateKey())
+            val encryptedKey = CryptoUtils.rsaEncrypt(sessionKey!!, peerPublicKey)
+            val signature = CryptoUtils.rsaSign(encryptedKey, myPrivateKey)
 
             var authRes = isoDep.transceive(Utils.concatArrays(CryptoUtils.CMD_AUTH_SEND_KEY, encryptedKey))
             if (!authRes.isSuccess()) throw IOException("Auth Step 1 failed.")
@@ -80,7 +88,8 @@ class FetchRecordActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
 
             val decryptedAck = CryptoUtils.xorEncryptDecrypt(authRes.copyOfRange(0, authRes.size - 2), sessionKey!!)
             if (String(decryptedAck, Charsets.UTF_8) != "AUTH_OK") {
-                throw IOException("Authentication rejected by sender.")
+                throw IOException("Authentication rejected by peer — signature/credential mismatch " +
+                    "(is the other device logged in and registered under the same CA?).")
             }
 
             runOnUiThread { statusTextView?.text = "Downloading Data..." }

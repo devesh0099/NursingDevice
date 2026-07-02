@@ -26,7 +26,15 @@ data class NurseRequest(
 data class NurseApiResponse(
     @SerializedName("success") val success: Boolean,
     @SerializedName("message") val message: String?,
-    @SerializedName("nurse") val nurse: NurseData?
+    @SerializedName("nurse") val nurse: NurseData?,
+    @SerializedName("credentials") val credentials: Credentials? = null,
+    @SerializedName("credentialError") val credentialError: String? = null
+)
+
+/** Result of a registration: the nurse profile plus (on first register) the credentials. */
+data class NurseRegistration(
+    val nurse: NurseData,
+    val credentials: Credentials?
 )
 
 data class NurseData(
@@ -68,11 +76,14 @@ class NurseRepository {
     suspend fun register(
         nurseId: String, name: String, age: Int?,
         gender: String?, pointOfCare: String, contactNo: String?
-    ): Result<NurseData> = withContext(Dispatchers.IO) {
+    ): Result<NurseRegistration> = withContext(Dispatchers.IO) {
         try {
             val resp = api.registerNurse(NurseRequest(nurseId, name, age, gender, pointOfCare, contactNo))
-            if (resp.success && resp.nurse != null) Result.success(resp.nurse)
-            else Result.failure(Exception(resp.message ?: "Registration failed"))
+            if (resp.success && resp.nurse != null) {
+                Result.success(NurseRegistration(resp.nurse, resp.credentials))
+            } else {
+                Result.failure(Exception(resp.message ?: "Registration failed"))
+            }
         } catch (e: Exception) {
             Log.e("NurseRepository", "register", e)
             Result.failure(e)

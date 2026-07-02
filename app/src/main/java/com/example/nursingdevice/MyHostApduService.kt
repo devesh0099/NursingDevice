@@ -7,6 +7,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import java.nio.ByteBuffer
+import java.security.PublicKey
 import java.util.Arrays
 import kotlin.math.min
 
@@ -25,6 +26,8 @@ class MyHostApduService : HostApduService() {
     private var tempEncryptedKey: ByteArray? = null
     private var sessionKey: ByteArray? = null
     private var isAuthenticated = false
+    // Phase 3: peer's public key, extracted from its certificate during cert exchange.
+    private var peerPublicKey: PublicKey? = null
 
     companion object {
         private var sharedTransferMode = "NONE"
@@ -82,6 +85,7 @@ class MyHostApduService : HostApduService() {
             isAuthenticated = false
             sessionKey = null
             tempEncryptedKey = null
+            peerPublicKey = null
             fileChunkOffset = 0
 
             transferMode = sharedTransferMode
@@ -91,6 +95,26 @@ class MyHostApduService : HostApduService() {
 
             notifyUI("Step 1: Connection Established")
             return Utils.SELECT_OK_SW
+        }
+
+        // Phase 3: certificate exchange (reader -> card). Verify the reader's cert
+        // against our CA, remember its public key, and reply with our own cert.
+        if (CryptoUtils.CERT_AUTH_ENABLED && commandApdu.size > 8 &&
+            Arrays.equals(commandApdu.take(8).toByteArray(), CryptoUtils.CMD_AUTH_SEND_CERT)) {
+            val myCert = CryptoUtils.getMyCertificatePem()
+            if (myCert == null) {
+                notifyUI("Cert exchange failed: no credential on this device — log in with your PIN")
+                return Utils.FILE_NOT_READY_SW
+            }
+            try {
+                val peerCertPem = String(commandApdu.copyOfRange(8, commandApdu.size), Charsets.UTF_8)
+                peerPublicKey = CryptoUtils.verifyPeerCert(peerCertPem)
+            } catch (e: PeerCertException) {
+                notifyUI("Peer cert rejected: ${e.message}")
+                return Utils.FILE_NOT_READY_SW
+            }
+            notifyUI("Certificates exchanged")
+            return Utils.concatArrays(myCert.toByteArray(Charsets.UTF_8), Utils.SELECT_OK_SW)
         }
 
         if (commandApdu.size > 8 && Arrays.equals(commandApdu.take(8).toByteArray(), CryptoUtils.CMD_AUTH_SEND_KEY)) {
@@ -108,10 +132,22 @@ class MyHostApduService : HostApduService() {
             }
 
             try {
-                val isValid = CryptoUtils.rsaVerify(tempEncryptedKey!!, signature, CryptoUtils.getOtherPublicKey())
+                // Phase 3: verify with the peer's cert key + decrypt with our own
+                // credential; fall back to the hardcoded pair when cert-auth is off.
+                val verifyKey = if (CryptoUtils.CERT_AUTH_ENABLED) peerPublicKey else CryptoUtils.getOtherPublicKey()
+                if (verifyKey == null) {
+                    notifyUI("Auth Failed: certificate not exchanged")
+                    return Utils.FILE_NOT_READY_SW
+                }
+                val isValid = CryptoUtils.rsaVerify(tempEncryptedKey!!, signature, verifyKey)
 
                 if (isValid) {
-                    sessionKey = CryptoUtils.rsaDecrypt(tempEncryptedKey!!, CryptoUtils.getMyPrivateKey())
+                    val myPriv = if (CryptoUtils.CERT_AUTH_ENABLED) CryptoUtils.getSessionPrivateKey() else CryptoUtils.getMyPrivateKey()
+                    if (myPriv == null) {
+                        notifyUI("Auth Failed: no credential on this device")
+                        return Utils.FILE_NOT_READY_SW
+                    }
+                    sessionKey = CryptoUtils.rsaDecrypt(tempEncryptedKey!!, myPriv)
                     isAuthenticated = true
 
                     notifyUI("Step 3: Authenticated Securely")
@@ -213,6 +249,7 @@ class MyHostApduService : HostApduService() {
     }
 
     override fun onDeactivated(reason: Int) {
+        peerPublicKey = null
         if (reason != DEACTIVATION_LINK_LOSS) {
             resetTransferState()
         }
