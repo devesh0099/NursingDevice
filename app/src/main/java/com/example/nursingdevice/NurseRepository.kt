@@ -31,7 +31,7 @@ data class NurseApiResponse(
     @SerializedName("credentialError") val credentialError: String? = null
 )
 
-/** Result of a registration: the nurse profile plus (on first register) the credentials. */
+/** Nurse profile plus credentials — returned by both register and login. */
 data class NurseRegistration(
     val nurse: NurseData,
     val credentials: Credentials?
@@ -90,10 +90,10 @@ class NurseRepository {
         }
     }
 
-    suspend fun login(nurseId: String): Result<NurseData> = withContext(Dispatchers.IO) {
+    suspend fun login(nurseId: String): Result<NurseRegistration> = withContext(Dispatchers.IO) {
         try {
             val resp = api.getNurse(nurseId)
-            if (resp.success && resp.nurse != null) Result.success(resp.nurse)
+            if (resp.success && resp.nurse != null) Result.success(NurseRegistration(resp.nurse, resp.credentials))
             else Result.failure(Exception("Nurse ID not found. Please register first."))
         } catch (e: Exception) {
             Log.e("NurseRepository", "login", e)

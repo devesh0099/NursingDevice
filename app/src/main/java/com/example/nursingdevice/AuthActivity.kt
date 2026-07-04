@@ -103,16 +103,31 @@ class AuthActivity : AppCompatActivity() {
         setLoading(true)
         lifecycleScope.launch {
             repo.login(nurseId).fold(
-                onSuccess = { data ->
+                onSuccess = { reg ->
+                    val data = reg.nurse
                     manager.saveNurseData(data)
-                    if (noCreds) {
-                        Toast.makeText(
-                            this@AuthActivity,
-                            "Logged in, but no credentials on this device. Re-register or rotate to provision them.",
-                            Toast.LENGTH_LONG
-                        ).show()
-                    } else {
-                        Toast.makeText(this@AuthActivity, "Welcome, ${data.name}!", Toast.LENGTH_SHORT).show()
+                    val creds = reg.credentials
+                    when {
+                        // Store had no credential on this device (e.g. app data was
+                        // cleared) but the server returned it — re-provision, encrypting
+                        // it under the PIN just entered.
+                        noCreds && creds?.privateKey != null -> {
+                            val saved = CredentialStore.saveFromServer(
+                                this@AuthActivity, pin, nurseId, "nurse", creds
+                            )
+                            val note = if (saved) "credentials restored" else "credential restore failed"
+                            Toast.makeText(this@AuthActivity, "Welcome, ${data.name} ($note)", Toast.LENGTH_SHORT).show()
+                        }
+                        noCreds -> {
+                            Toast.makeText(
+                                this@AuthActivity,
+                                "Logged in, but no credentials available to restore. Rotate to provision them.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                        else -> {
+                            Toast.makeText(this@AuthActivity, "Welcome, ${data.name}!", Toast.LENGTH_SHORT).show()
+                        }
                     }
                     goToMain()
                 },

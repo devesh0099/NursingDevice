@@ -108,6 +108,15 @@ object CredentialStore {
     }
 
     private fun open(context: Context, pin: String, nurseId: String): NursingDeviceDatabase {
+        // Always drop any cached handle first. getInstance() reuses an already-open
+        // connection and IGNORES the passphrase, so SQLCipher only ever validates the
+        // PIN on a genuine open. Without this reset:
+        //   - login would accept ANY pin once the DB had been opened (wrong-PIN bug), and
+        //   - a save could persist the credential under a stale passphrase from a prior
+        //     failed unlock (register-after-failed-login bug).
+        // Reopening is cheap and NFC reads keys from the in-memory CredentialHolder, not
+        // this handle, so closing it between operations is safe.
+        NursingDeviceDatabase.reset()
         val salt = PinCrypto.getOrCreateSalt(context)
         val passphrase = PinCrypto.deriveKey(pin, nurseId, salt)
         return NursingDeviceDatabase.getInstance(context, passphrase)
