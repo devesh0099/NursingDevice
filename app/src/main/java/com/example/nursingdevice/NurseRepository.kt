@@ -61,8 +61,11 @@ class NurseRepository {
     init {
         val logging = HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BODY }
         val client = OkHttpClient.Builder()
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
+            // 60s to absorb a Render free-tier cold start (UptimeRobot keeps it warm,
+            // but a missed ping can still leave the first request waking the instance).
+            .connectTimeout(60, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .writeTimeout(60, TimeUnit.SECONDS)
             .addInterceptor(logging)
             .build()
         api = Retrofit.Builder()

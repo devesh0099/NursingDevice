@@ -112,11 +112,13 @@ class AuthActivity : AppCompatActivity() {
                         // cleared) but the server returned it — re-provision, encrypting
                         // it under the PIN just entered.
                         noCreds && creds?.privateKey != null -> {
-                            val saved = CredentialStore.saveFromServer(
+                            val note = when (val r = CredentialStore.saveFromServer(
                                 this@AuthActivity, pin, nurseId, "nurse", creds
-                            )
-                            val note = if (saved) "credentials restored" else "credential restore failed"
-                            Toast.makeText(this@AuthActivity, "Welcome, ${data.name} ($note)", Toast.LENGTH_SHORT).show()
+                            )) {
+                                is SaveResult.Success -> "credentials restored"
+                                is SaveResult.Failed  -> "credential restore failed: ${r.reason}"
+                            }
+                            Toast.makeText(this@AuthActivity, "Welcome, ${data.name} ($note)", Toast.LENGTH_LONG).show()
                         }
                         noCreds -> {
                             Toast.makeText(
@@ -165,11 +167,13 @@ class AuthActivity : AppCompatActivity() {
                     // Persist the server-issued credentials, encrypted under this PIN.
                     val creds = reg.credentials
                     if (creds?.privateKey != null) {
-                        val saved = CredentialStore.saveFromServer(
+                        val note = when (val r = CredentialStore.saveFromServer(
                             this@AuthActivity, pin, nurseId, "nurse", creds
-                        )
-                        val note = if (saved) "credentials secured" else "credential save failed"
-                        Toast.makeText(this@AuthActivity, "Registered as ${reg.nurse.name} ($note)", Toast.LENGTH_SHORT).show()
+                        )) {
+                            is SaveResult.Success -> "credentials secured"
+                            is SaveResult.Failed  -> "credential save failed: ${r.reason}"
+                        }
+                        Toast.makeText(this@AuthActivity, "Registered as ${reg.nurse.name} ($note)", Toast.LENGTH_LONG).show()
                     } else {
                         Toast.makeText(
                             this@AuthActivity,

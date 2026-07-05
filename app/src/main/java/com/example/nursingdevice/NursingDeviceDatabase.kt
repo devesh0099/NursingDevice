@@ -54,6 +54,8 @@ abstract class NursingDeviceDatabase : RoomDatabase() {
     abstract fun credentialDao(): CredentialDao
 
     companion object {
+        const val DB_NAME = "nursing_device_creds.db"
+
         @Volatile
         private var INSTANCE: NursingDeviceDatabase? = null
 
@@ -72,7 +74,7 @@ abstract class NursingDeviceDatabase : RoomDatabase() {
             return Room.databaseBuilder(
                 context.applicationContext,
                 NursingDeviceDatabase::class.java,
-                "nursing_device_creds.db"
+                DB_NAME
             )
                 .openHelperFactory(factory)
                 .fallbackToDestructiveMigration()

@@ -31,6 +31,12 @@ sealed class UnlockResult {
     data class Failed(val reason: String) : UnlockResult()
 }
 
+/** Outcome of a credential save, with an exact reason on failure (for the UI). */
+sealed class SaveResult {
+    object Success : SaveResult()
+    data class Failed(val reason: String) : SaveResult()
+}
+
 /**
  * Facade over the encrypted credential DB: derive the passphrase from PIN+id,
  * open the DB, and save / load the credential into CredentialHolder.
@@ -67,6 +73,7 @@ object CredentialStore {
     /**
      * Save credentials received from the server at registration, encrypting them
      * under a freshly set PIN. Also loads them into memory for immediate use.
+     * Returns a [SaveResult] carrying the exact reason on failure (for the UI).
      */
     fun saveFromServer(
         context: Context,
@@ -74,33 +81,67 @@ object CredentialStore {
         nurseId: String,
         role: String,
         creds: Credentials
-    ): Boolean {
+    ): SaveResult {
         val priv = creds.privateKey
         val pub = creds.publicKey
         val cert = creds.certificate
         val ca = creds.caCertificate
         if (priv.isNullOrBlank() || pub.isNullOrBlank() || cert.isNullOrBlank() || ca.isNullOrBlank()) {
             Log.w("CredentialStore", "Incomplete credentials from server; not saving.")
-            return false
+            return SaveResult.Failed("server did not return a complete credential")
         }
+        val entity = CredentialEntity(
+            ownerId = nurseId,
+            role = role,
+            privateKeyB64 = priv,
+            publicKeyB64 = pub,
+            certPem = cert,
+            caCertPem = ca
+        )
         return try {
-            val db = open(context, pin, nurseId)
-            val entity = CredentialEntity(
-                ownerId = nurseId,
-                role = role,
-                privateKeyB64 = priv,
-                publicKeyB64 = pub,
-                certPem = cert,
-                caCertPem = ca
-            )
-            db.credentialDao().upsert(entity)
+            writeCredential(context, pin, nurseId, entity)
             CredentialHolder.current = entity
-            true
+            SaveResult.Success
         } catch (e: Exception) {
             Log.e("CredentialStore", "saveFromServer failed", e)
-            false
+            SaveResult.Failed(describeSaveError(e))
         }
     }
+
+    /**
+     * Write the credential, healing a stale store. If the creds DB was created under
+     * a DIFFERENT PIN/nurseId (e.g. an earlier registration attempt), SQLCipher can't
+     * reopen it with this key and throws "file is not a database". The CAD store holds
+     * ONLY server-issued credentials — which we're re-saving right now and can always
+     * re-fetch — so it is safe to discard the old file and recreate it under this PIN.
+     */
+    private fun writeCredential(context: Context, pin: String, nurseId: String, entity: CredentialEntity) {
+        try {
+            open(context, pin, nurseId).credentialDao().upsert(entity)
+        } catch (e: Exception) {
+            if (!isKeyMismatch(e)) throw e
+            Log.w("CredentialStore", "creds DB unreadable with this PIN — recreating it", e)
+            NursingDeviceDatabase.reset()                     // close the broken handle first
+            context.deleteDatabase(NursingDeviceDatabase.DB_NAME)  // drop file + journal/wal/shm
+            open(context, pin, nurseId).credentialDao().upsert(entity)
+        }
+    }
+
+    /** True if [e] (or any cause) is SQLCipher's "wrong key / not a database" signal. */
+    private fun isKeyMismatch(e: Throwable?): Boolean {
+        var c: Throwable? = e
+        while (c != null) {
+            val m = c.message?.lowercase().orEmpty()
+            if (m.contains("not a database") || m.contains("file is not") ||
+                m.contains("encrypted") || m.contains("sqlite_notadb")) return true
+            c = c.cause
+        }
+        return false
+    }
+
+    private fun describeSaveError(e: Throwable): String =
+        if (isKeyMismatch(e)) "the local secure store was locked under a different PIN"
+        else e.message ?: e.javaClass.simpleName
 
     fun lock() {
         CredentialHolder.clear()
