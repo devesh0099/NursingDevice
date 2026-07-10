@@ -109,6 +109,16 @@ object CryptoUtils {
 
     // APDU command for the added cert-exchange step (reader -> card).
     val CMD_AUTH_SEND_CERT = "AUTH_CRT".toByteArray(Charsets.UTF_8)
+    // Reader -> card: request the next chunk of the card's certificate.
+    val CMD_AUTH_GET_CERT = "AUTH_CRG".toByteArray(Charsets.UTF_8)
+
+    // Chunked framing for the auth phase: [cmd(8)][flag(1)][payload<=AUTH_CHUNK_SIZE].
+    // Some NFC controllers (e.g. Galaxy Tab Active5) cannot receive extended-length
+    // APDUs in HCE mode, so certs (~1.3 KB) and the 256-byte key/signature blocks
+    // must be split into small APDUs, like the 245-byte file-transfer chunks.
+    const val AUTH_CHUNK_MORE: Byte = 0x00 // more chunks follow
+    const val AUTH_CHUNK_LAST: Byte = 0x01 // final chunk — process the payload
+    const val AUTH_CHUNK_SIZE = 240
 
     /** This device's private key from the unlocked credential, or null if locked. */
     fun getSessionPrivateKey(): PrivateKey? {

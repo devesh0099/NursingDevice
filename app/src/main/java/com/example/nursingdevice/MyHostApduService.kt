@@ -28,6 +28,12 @@ class MyHostApduService : HostApduService() {
     private var isAuthenticated = false
     // Phase 3: peer's public key, extracted from its certificate during cert exchange.
     private var peerPublicKey: PublicKey? = null
+    // Chunked-APDU reassembly for the auth phase (AUTH_CRT / AUTH_KEY / AUTH_SIG) and
+    // chunked serving of our own cert (AUTH_CRG). Needed because some controllers
+    // (e.g. Galaxy Tab Active5) can't receive extended-length APDUs in HCE mode.
+    private var chunkedCmdTag: String? = null
+    private val chunkedBuffer = java.io.ByteArrayOutputStream()
+    private var certSendOffset = 0
 
     companion object {
         private var sharedTransferMode = "NONE"
@@ -80,6 +86,28 @@ class MyHostApduService : HostApduService() {
         }
     }
 
+    /**
+     * Reassemble a chunked auth command ([cmd(8)][flag(1)][chunk]). Returns null
+     * while more chunks are pending (caller acks with SELECT_OK_SW), or the fully
+     * assembled payload on the final chunk. Switching to a different command tag
+     * discards any half-finished buffer from an interrupted exchange.
+     */
+    private fun reassembleChunks(cmdName: String, commandApdu: ByteArray): ByteArray? {
+        if (chunkedCmdTag != cmdName) {
+            chunkedCmdTag = cmdName
+            chunkedBuffer.reset()
+        }
+        val flag = commandApdu[8]
+        chunkedBuffer.write(commandApdu, 9, commandApdu.size - 9)
+        val last = flag == CryptoUtils.AUTH_CHUNK_LAST
+        Log.d("HCE_AUTH", "reassemble[$cmdName]: rxApduLen=${commandApdu.size} chunk=${commandApdu.size - 9} last=$last total=${chunkedBuffer.size()}")
+        if (!last) return null
+        val payload = chunkedBuffer.toByteArray()
+        chunkedBuffer.reset()
+        chunkedCmdTag = null
+        return payload
+    }
+
     override fun processCommandApdu(commandApdu: ByteArray, extras: Bundle?): ByteArray {
         if (Arrays.equals(commandApdu, Utils.SELECT_APD)) {
             isAuthenticated = false
@@ -87,6 +115,9 @@ class MyHostApduService : HostApduService() {
             tempEncryptedKey = null
             peerPublicKey = null
             fileChunkOffset = 0
+            chunkedCmdTag = null
+            chunkedBuffer.reset()
+            certSendOffset = 0
 
             transferMode = sharedTransferMode
             textContent = sharedTextContent
@@ -97,8 +128,9 @@ class MyHostApduService : HostApduService() {
             return Utils.SELECT_OK_SW
         }
 
-        // Phase 3: certificate exchange (reader -> card). Verify the reader's cert
-        // against our CA, remember its public key, and reply with our own cert.
+        // Phase 3: certificate exchange (reader -> card). The reader uploads its cert
+        // in chunks; on the final chunk we verify it against our CA and remember its
+        // public key. The reader then pulls our cert in chunks via AUTH_CRG.
         if (CryptoUtils.CERT_AUTH_ENABLED && commandApdu.size > 8 &&
             Arrays.equals(commandApdu.take(8).toByteArray(), CryptoUtils.CMD_AUTH_SEND_CERT)) {
             val myCert = CryptoUtils.getMyCertificatePem()
@@ -106,25 +138,41 @@ class MyHostApduService : HostApduService() {
                 notifyUI("Cert exchange failed: no credential on this device — log in with your PIN")
                 return Utils.FILE_NOT_READY_SW
             }
+            val peerCertBytes = reassembleChunks("AUTH_CRT", commandApdu) ?: return Utils.SELECT_OK_SW
             try {
-                val peerCertPem = String(commandApdu.copyOfRange(8, commandApdu.size), Charsets.UTF_8)
-                peerPublicKey = CryptoUtils.verifyPeerCert(peerCertPem)
+                peerPublicKey = CryptoUtils.verifyPeerCert(String(peerCertBytes, Charsets.UTF_8))
             } catch (e: PeerCertException) {
                 notifyUI("Peer cert rejected: ${e.message}")
                 return Utils.FILE_NOT_READY_SW
             }
+            certSendOffset = 0
             notifyUI("Certificates exchanged")
-            return Utils.concatArrays(myCert.toByteArray(Charsets.UTF_8), Utils.SELECT_OK_SW)
+            return Utils.SELECT_OK_SW
+        }
+
+        // Phase 3: serve our own cert to the reader, one chunk per AUTH_CRG command.
+        if (CryptoUtils.CERT_AUTH_ENABLED && Arrays.equals(commandApdu, CryptoUtils.CMD_AUTH_GET_CERT)) {
+            val myCert = CryptoUtils.getMyCertificatePem()?.toByteArray(Charsets.UTF_8)
+            if (myCert == null) {
+                notifyUI("Cert exchange failed: no credential on this device — log in with your PIN")
+                return Utils.FILE_NOT_READY_SW
+            }
+            val end = min(certSendOffset + CryptoUtils.AUTH_CHUNK_SIZE, myCert.size)
+            val flag = if (end == myCert.size) CryptoUtils.AUTH_CHUNK_LAST else CryptoUtils.AUTH_CHUNK_MORE
+            val chunk = myCert.copyOfRange(certSendOffset, end)
+            Log.d("HCE_AUTH", "serveCert -> chunk from $certSendOffset..$end of ${myCert.size} last=${end == myCert.size}")
+            certSendOffset = if (end == myCert.size) 0 else end
+            return Utils.concatArrays(byteArrayOf(flag), chunk, Utils.SELECT_OK_SW)
         }
 
         if (commandApdu.size > 8 && Arrays.equals(commandApdu.take(8).toByteArray(), CryptoUtils.CMD_AUTH_SEND_KEY)) {
-            tempEncryptedKey = commandApdu.copyOfRange(8, commandApdu.size)
+            tempEncryptedKey = reassembleChunks("AUTH_KEY", commandApdu) ?: return Utils.SELECT_OK_SW
             notifyUI("Step 2: Key Received")
             return Utils.SELECT_OK_SW
         }
 
         if (commandApdu.size > 8 && Arrays.equals(commandApdu.take(8).toByteArray(), CryptoUtils.CMD_AUTH_SEND_SIG)) {
-            val signature = commandApdu.copyOfRange(8, commandApdu.size)
+            val signature = reassembleChunks("AUTH_SIG", commandApdu) ?: return Utils.SELECT_OK_SW
 
             if (tempEncryptedKey == null) {
                 notifyUI("Error: Signature without Key")

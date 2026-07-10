@@ -78,11 +78,12 @@ class FetchRecordActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
             val encryptedKey = CryptoUtils.rsaEncrypt(sessionKey!!, peerPublicKey)
             val signature = CryptoUtils.rsaSign(encryptedKey, myPrivateKey)
 
-            var authRes = isoDep.transceive(Utils.concatArrays(CryptoUtils.CMD_AUTH_SEND_KEY, encryptedKey))
+            // Chunked so the command never exceeds the peer's HCE receive limit.
+            var authRes = NfcAuth.sendChunked(isoDep, CryptoUtils.CMD_AUTH_SEND_KEY, encryptedKey)
             if (!authRes.isSuccess()) throw IOException("Auth Step 1 failed.")
             logStep("Step 3: Session Key Sent")
 
-            authRes = isoDep.transceive(Utils.concatArrays(CryptoUtils.CMD_AUTH_SEND_SIG, signature))
+            authRes = NfcAuth.sendChunked(isoDep, CryptoUtils.CMD_AUTH_SEND_SIG, signature)
             if (!authRes.isSuccess()) throw IOException("Auth Step 2 failed.")
             logStep("Step 4: Signature Sent")
 
