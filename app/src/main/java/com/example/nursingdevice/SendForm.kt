@@ -335,7 +335,8 @@ class SendForm : AppCompatActivity(), RecognitionListener {
         try {
             generatedFileName = fileName
             showPreview(fileName)
-            Toast.makeText(this, "Record ready for NFC transfer", Toast.LENGTH_SHORT).show()
+            val transport = if (TransferModeStore.isWifiDirect(this)) "Wi-Fi Direct" else "NFC"
+            Toast.makeText(this, "Record ready for $transport transfer", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
             Toast.makeText(this, "Error generating file: ${e.message}", Toast.LENGTH_SHORT).show()
         }
@@ -355,6 +356,13 @@ class SendForm : AppCompatActivity(), RecognitionListener {
 
     private fun sendViaNfc() {
         val fileName = generatedFileName ?: return
+        if (TransferModeStore.isWifiDirect(this)) {
+            MyHostApduService.setFileForTransfer(fileContent.toByteArray(Charsets.UTF_8), "text/plain")
+            startActivity(Intent(this, WifiDirectTransferActivity::class.java).apply {
+                putExtra(WifiDirectTransferActivity.EXTRA_DIRECTION, WifiDirectTransferActivity.DIRECTION_SEND)
+            })
+            return
+        }
         val intent = Intent(this, SendDocumentActivity::class.java)
         intent.putExtra("FILE_NAME", fileName)
         intent.putExtra("FILE_CONTENT", fileContent)

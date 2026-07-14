@@ -15,6 +15,7 @@ class SendDocumentActivity : AppCompatActivity() {
     private lateinit var fileNameText: TextView
     private lateinit var detailedLogText: TextView
     private lateinit var logScrollView: ScrollView
+    private var wifiDirectLaunched = false
 
     @SuppressLint("MissingInflatedId")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -45,7 +46,18 @@ class SendDocumentActivity : AppCompatActivity() {
             val displayName = fileName ?: "medical_update.txt"
             headerStatusText.text = "Waiting for Receiver..."
             fileNameText.text = "Payload: $displayName\nSize: ${fileContent.size} bytes"
-            detailedLogText.text = "Ready to transmit. Hold near reader.\n"
+            detailedLogText.text = if (TransferModeStore.isWifiDirect(this)) {
+                "Ready to transmit over Wi-Fi Direct.\n"
+            } else {
+                "Ready to transmit. Hold near reader.\n"
+            }
+
+            if (TransferModeStore.isWifiDirect(this) && !wifiDirectLaunched) {
+                wifiDirectLaunched = true
+                startActivity(Intent(this, WifiDirectTransferActivity::class.java).apply {
+                    putExtra(WifiDirectTransferActivity.EXTRA_DIRECTION, WifiDirectTransferActivity.DIRECTION_SEND)
+                })
+            }
 
         } catch (e: Exception) {
             Log.e("SendDocumentActivity", "Failed to load file", e)

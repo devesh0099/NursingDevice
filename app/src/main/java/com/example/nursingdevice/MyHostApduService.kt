@@ -12,6 +12,14 @@ import java.util.Arrays
 import kotlin.math.min
 
 data class FileData(val name: String, val content: ByteArray)
+data class TransferSnapshot(
+    val mode: String,
+    val text: String?,
+    val fileContent: ByteArray?,
+    val fileMimeType: String?,
+    val appendedFile: ByteArray?,
+    val appendedFileName: String
+)
 
 class MyHostApduService : HostApduService() {
 
@@ -76,6 +84,16 @@ class MyHostApduService : HostApduService() {
             sharedAppendedFile = null
             sharedCurrentFileName = "appended_data.dat"
         }
+
+        fun snapshotTransferState(): TransferSnapshot =
+            TransferSnapshot(
+                mode = sharedTransferMode,
+                text = sharedTextContent,
+                fileContent = sharedFileContent,
+                fileMimeType = sharedFileMimeType,
+                appendedFile = sharedAppendedFile,
+                appendedFileName = sharedCurrentFileName
+            )
     }
 
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -123,6 +141,8 @@ class MyHostApduService : HostApduService() {
             textContent = sharedTextContent
             fileContent = sharedFileContent
             fileMimeType = sharedFileMimeType
+            singleAppendedFile = sharedAppendedFile
+            currentFileName = sharedCurrentFileName
 
             notifyUI("Step 1: Connection Established")
             return Utils.SELECT_OK_SW

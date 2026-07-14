@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import android.widget.Button
+import android.widget.Switch
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import com.example.nursingdevice.connections.StoragePermission
@@ -25,16 +26,28 @@ class MainActivity : AppCompatActivity() {
         fetchEntireHistoryButton = findViewById(R.id.fetchEntireHistoryBtn)
         val scanPatientTagButton = findViewById<Button>(R.id.ScanPatientTagButton)
         val getPatientBtn = findViewById<Button>(R.id.getPatientBtn)
+        val transportSwitch = findViewById<Switch>(R.id.transportModeSwitch)
+        transportSwitch.isChecked = TransferModeStore.isWifiDirect(this)
+        transportSwitch.setOnCheckedChangeListener { _, checked ->
+            TransferModeStore.setWifiDirect(this, checked)
+        }
 
         val fetchRecordBtn = findViewById<Button>(R.id.fetchRecordBtn)
         val viewFetchedBtn = findViewById<Button>(R.id.viewFetchedBtn)
 
         fetchRecordBtn.setOnClickListener {
-            startActivity(Intent(this, FetchRecordActivity::class.java))
+            if (TransferModeStore.isWifiDirect(this)) {
+                startActivity(Intent(this, WifiDirectTransferActivity::class.java).apply {
+                    putExtra(WifiDirectTransferActivity.EXTRA_DIRECTION, WifiDirectTransferActivity.DIRECTION_RECEIVE)
+                    putExtra(WifiDirectTransferActivity.EXTRA_PURPOSE, WifiDirectTransferActivity.PURPOSE_FETCH_RECORD)
+                })
+            } else {
+                startActivity(Intent(this, FetchRecordActivity::class.java))
+            }
         }
 
         fetchEntireHistoryButton.setOnClickListener {
-            startActivity(Intent(this, FetchEntireHistoryActivity::class.java))
+            startActivity(Intent().setClassName(this, "$packageName.FetchEntireHistoryActivity"))
         }
 
         viewFetchedBtn.setOnClickListener {
@@ -51,8 +64,15 @@ class MainActivity : AppCompatActivity() {
         }
 
         scanPatientTagButton.setOnClickListener {
-            val intent = Intent(this, ReaderActivity::class.java)
-            startActivity(intent)
+            if (TransferModeStore.isWifiDirect(this)) {
+                startActivity(Intent(this, WifiDirectTransferActivity::class.java).apply {
+                    putExtra(WifiDirectTransferActivity.EXTRA_DIRECTION, WifiDirectTransferActivity.DIRECTION_RECEIVE)
+                    putExtra(WifiDirectTransferActivity.EXTRA_PURPOSE, WifiDirectTransferActivity.PURPOSE_SCAN_PATIENT)
+                })
+            } else {
+                val intent = Intent(this, ReaderActivity::class.java)
+                startActivity(intent)
+            }
         }
 
         getPatientBtn.setOnClickListener {
@@ -96,7 +116,7 @@ class MainActivity : AppCompatActivity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == StoragePermission.REQUEST_CODE_STORAGE_PERMISSION) {
             Log.d("Storage permission", "Going for storage permission")
-            storagePermission!!.onRequestPermissionsResult(requestCode, permissions as Array<String?>, grantResults)
+            storagePermission!!.onRequestPermissionsResult(requestCode, permissions.copyOf(), grantResults)
         }
     }
 }
