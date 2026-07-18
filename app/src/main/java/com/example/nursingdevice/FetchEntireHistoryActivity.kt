@@ -1,5 +1,6 @@
 package com.example.nursingdevice
 
+import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
@@ -7,13 +8,15 @@ import android.widget.ImageButton
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import kotlinx.coroutines.launch
 
-class FetchEntireHistoryActivity : AppCompatActivity() {
+class FetchEntireHistoryActivity : Activity() {
 
     private lateinit var currentPathText: TextView
     private lateinit var statusText: TextView
@@ -23,6 +26,7 @@ class FetchEntireHistoryActivity : AppCompatActivity() {
     private lateinit var backButton: ImageButton
     private lateinit var adapter: HistoryBrowserAdapter
 
+    private val activityScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val repo = CloudHistoryRepository()
     private val manager by lazy { NursePatientManager(this) }
 
@@ -69,6 +73,11 @@ class FetchEntireHistoryActivity : AppCompatActivity() {
         }
     }
 
+    override fun onDestroy() {
+        super.onDestroy()
+        activityScope.cancel()
+    }
+
     private fun startFetch() {
         val patient = manager.getPatient()
         if (patient == null || patient.patientId.isBlank() || patient.patientId == "N/A") {
@@ -88,7 +97,7 @@ class FetchEntireHistoryActivity : AppCompatActivity() {
         emptyStateText.visibility = View.GONE
         recyclerView.visibility = View.GONE
 
-        lifecycleScope.launch {
+        activityScope.launch {
             repo.fetchEntireHistory(this@FetchEntireHistoryActivity, patient.patientId).fold(
                 onSuccess = {
                     progressBar.visibility = View.GONE
