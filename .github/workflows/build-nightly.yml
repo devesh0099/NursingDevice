@@ -3,9 +3,7 @@ permissions:
 
 name: Build and Release Nightly APK
 
-on:
-  push:
-    branches: [ main ]
+on: push
 
 jobs:
   build:
