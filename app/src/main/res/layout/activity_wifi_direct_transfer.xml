@@ -46,6 +46,14 @@
             android:text="Scan Wi-Fi Direct QR"
             android:textAllCaps="false" />
 
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/wifiRetryButton"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:layout_marginTop="12dp"
+            android:text="Force Retry Wi-Fi Direct"
+            android:textAllCaps="false" />
+
         <TextView
             android:id="@+id/wifiLogText"
             android:layout_width="match_parent"

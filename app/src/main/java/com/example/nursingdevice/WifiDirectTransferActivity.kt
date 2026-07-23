@@ -32,12 +32,14 @@ import com.journeyapps.barcodescanner.ScanOptions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.io.DataInputStream
 import java.io.DataOutputStream
+import java.io.EOFException
 import java.io.IOException
 import java.net.InetAddress
 import java.net.InetSocketAddress
@@ -55,16 +57,19 @@ class WifiDirectTransferActivity : AppCompatActivity() {
     private lateinit var receivedDataText: TextView
     private lateinit var qrImage: ImageView
     private lateinit var scanButton: MaterialButton
+    private lateinit var retryButton: MaterialButton
 
     private val scope = CoroutineScope(Dispatchers.Main + Job())
     private val manager by lazy { getSystemService(Context.WIFI_P2P_SERVICE) as WifiP2pManager }
     private val channel by lazy { manager.initialize(this, mainLooper, null) }
     private var targetPeerName: String? = null
+    private var lastScannedPeerName: String? = null
     private var serverStarted = false
     private var clientStarted = false
     private var wifiStarted = false
     private var connectRequested = false
     private var deviceName = ""
+    private var peerSearchAttempts = 0
     private val direction by lazy { intent.getStringExtra(EXTRA_DIRECTION) ?: DIRECTION_RECEIVE }
     private val purpose by lazy { intent.getStringExtra(EXTRA_PURPOSE) ?: PURPOSE_SCAN_PATIENT }
     private val permissionLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
@@ -76,6 +81,8 @@ class WifiDirectTransferActivity : AppCompatActivity() {
             val scannedName = result.contents.trim()
             Toast.makeText(this, "Scanning for $scannedName...", Toast.LENGTH_SHORT).show()
             targetPeerName = scannedName
+            lastScannedPeerName = scannedName
+            peerSearchAttempts = 0
             logStep("Scanning for $scannedName...")
             discoverPeers()
         }
@@ -104,9 +111,14 @@ class WifiDirectTransferActivity : AppCompatActivity() {
                 WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION -> {
                     @Suppress("DEPRECATION")
                     val networkInfo = intent.getParcelableExtra<NetworkInfo>(WifiP2pManager.EXTRA_NETWORK_INFO)
+                    logStep("Connection state changed: ${networkInfo?.state ?: "unknown"}")
                     if (networkInfo?.isConnected == true) {
                         manager.requestConnectionInfo(channel) { info ->
                             if (!info.groupFormed) return@requestConnectionInfo
+                            logStep(
+                                "Group formed. Role: " +
+                                    if (info.isGroupOwner) "group owner" else "client"
+                            )
                             statusText.text = "Wi-Fi Direct connected. Opening socket..."
                             if (info.isGroupOwner && !serverStarted) {
                                 serverStarted = true
@@ -120,6 +132,7 @@ class WifiDirectTransferActivity : AppCompatActivity() {
                         serverStarted = false
                         clientStarted = false
                         connectRequested = false
+                        logStep("Wi-Fi Direct disconnected; stale connection flags cleared.")
                     }
                 }
             }
@@ -134,11 +147,13 @@ class WifiDirectTransferActivity : AppCompatActivity() {
         receivedDataText = findViewById(R.id.wifiReceivedDataText)
         qrImage = findViewById(R.id.wifiQrImage)
         scanButton = findViewById(R.id.wifiScanButton)
+        retryButton = findViewById(R.id.wifiRetryButton)
         findViewById<TextView>(R.id.wifiTitleText).text =
             if (direction == DIRECTION_SEND) "Wi-Fi Direct Sender" else "Wi-Fi Direct Receiver"
 
         scanButton.visibility = if (direction == DIRECTION_RECEIVE) View.VISIBLE else View.GONE
         scanButton.setOnClickListener { openQrScanner() }
+        retryButton.setOnClickListener { forceRetryWifiDirect() }
         requestWifiPermissions()
     }
 
@@ -161,6 +176,8 @@ class WifiDirectTransferActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        cleanupWifiDirect("Leaving Wi-Fi Direct screen")
+        scope.cancel()
         if (direction == DIRECTION_SEND) {
             MyHostApduService.resetTransferState()
         }
@@ -232,21 +249,90 @@ class WifiDirectTransferActivity : AppCompatActivity() {
                 if (reason == WifiP2pManager.BUSY && retryBusy) {
                     scope.launch {
                         delay(700)
-                        manager.stopPeerDiscovery(channel, object : WifiP2pManager.ActionListener {
-                            override fun onSuccess() {
-                                scope.launch {
-                                    delay(700)
-                                    discoverPeers(retryBusy = false)
-                                }
+                        stopPeerDiscovery("Discovery busy; restarting") {
+                            scope.launch {
+                                delay(700)
+                                discoverPeers(retryBusy = false)
                             }
-                            override fun onFailure(reason: Int) {
-                                logStep("Stop discovery failed: ${wifiP2pReason(reason)}")
-                            }
-                        })
+                        }
                     }
                 }
             }
         })
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun stopPeerDiscovery(reason: String, onStopped: (() -> Unit)? = null) {
+        logStep(reason)
+        manager.stopPeerDiscovery(channel, object : WifiP2pManager.ActionListener {
+            override fun onSuccess() {
+                logStep("Peer discovery stopped.")
+                onStopped?.invoke()
+            }
+            override fun onFailure(reason: Int) {
+                logStep("Stop discovery failed: ${wifiP2pReason(reason)}")
+                onStopped?.invoke()
+            }
+        })
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun cleanupWifiDirect(reason: String) {
+        logStep("$reason; cleaning up Wi-Fi Direct state.")
+        wifiStarted = false
+        serverStarted = false
+        clientStarted = false
+        connectRequested = false
+        peerSearchAttempts = 0
+        stopPeerDiscovery("Stopping peer discovery during cleanup")
+        manager.cancelConnect(channel, object : WifiP2pManager.ActionListener {
+            override fun onSuccess() { logStep("Pending Wi-Fi Direct connect cancelled.") }
+            override fun onFailure(reason: Int) { logStep("Cancel connect result: ${wifiP2pReason(reason)}") }
+        })
+        manager.removeGroup(channel, object : WifiP2pManager.ActionListener {
+            override fun onSuccess() { logStep("Wi-Fi Direct group removed.") }
+            override fun onFailure(reason: Int) { logStep("Remove group result: ${wifiP2pReason(reason)}") }
+        })
+    }
+
+    private fun forceRetryWifiDirect() {
+        if (!hasWifiPermissions()) {
+            requestWifiPermissions()
+            return
+        }
+
+        if (direction == DIRECTION_RECEIVE) {
+            val rememberedTarget = lastScannedPeerName
+            if (rememberedTarget.isNullOrBlank()) {
+                statusText.text = "Scan QR first"
+                logStep("No remembered QR target. Scan the QR once, then Force Retry can reuse it.")
+                openQrScanner()
+                return
+            }
+            targetPeerName = rememberedTarget
+        }
+
+        statusText.text = "Force retrying Wi-Fi Direct..."
+        cleanupWifiDirect("Manual force retry")
+        scope.launch {
+            delay(1400)
+            beginWifiDirect()
+        }
+    }
+
+    private fun retryPeerSearch(target: String, visibleCount: Int) {
+        if (peerSearchAttempts >= MAX_PEER_SEARCH_ATTEMPTS) {
+            statusText.text = "Could not find sender"
+            logStep("No peer named \"$target\" after $peerSearchAttempts retries. Try backing out on both devices and reopening Wi-Fi Direct.")
+            Toast.makeText(this, "Could not find sender. Reopen Wi-Fi Direct on both devices.", Toast.LENGTH_LONG).show()
+            return
+        }
+        peerSearchAttempts++
+        logStep("Target \"$target\" not found. Visible peers: $visibleCount. Retrying discovery ($peerSearchAttempts/$MAX_PEER_SEARCH_ATTEMPTS).")
+        scope.launch {
+            delay(900)
+            discoverPeers()
+        }
     }
 
     private fun wifiP2pReason(reason: Int): String = when (reason) {
@@ -286,9 +372,13 @@ class WifiDirectTransferActivity : AppCompatActivity() {
             val device = peers.deviceList.firstOrNull {
                 it.deviceName.trim().equals(target.trim(), ignoreCase = true)
             }
-            if (device == null) return@requestPeers
+            if (device == null) {
+                retryPeerSearch(target, peers.deviceList.size)
+                return@requestPeers
+            }
             targetPeerName = null
             connectRequested = true
+            peerSearchAttempts = 0
             statusText.text = "Connecting to ${device.deviceName}..."
             logStep("Found ${device.deviceName}. Connecting...")
             val config = WifiP2pConfig().apply {
@@ -299,7 +389,16 @@ class WifiDirectTransferActivity : AppCompatActivity() {
                 override fun onSuccess() { logStep("Wi-Fi Direct connect requested.") }
                 override fun onFailure(reason: Int) {
                     connectRequested = false
-                    logStep("Connect failed: $reason")
+                    val message = "Connect failed: ${wifiP2pReason(reason)}"
+                    logStep(message)
+                    if (reason == WifiP2pManager.BUSY) {
+                        targetPeerName = target
+                        cleanupWifiDirect("Connect was busy")
+                        scope.launch {
+                            delay(1200)
+                            discoverPeers()
+                        }
+                    }
                 }
             })
         }
@@ -358,10 +457,17 @@ class WifiDirectTransferActivity : AppCompatActivity() {
         val processor = WifiApduProcessor(MyHostApduService.snapshotTransferState()) { msg -> logStep(msg) }
         val input = DataInputStream(socket.getInputStream())
         val output = DataOutputStream(socket.getOutputStream())
-        while (!socket.isClosed) {
-            val command = input.readFrame()
-            val response = processor.process(command)
-            output.writeFrame(response)
+        try {
+            while (!socket.isClosed) {
+                val command = input.readFrame()
+                val response = processor.process(command)
+                output.writeFrame(response)
+            }
+        } catch (_: EOFException) {
+            withContext(Dispatchers.Main) {
+                statusText.text = "Transfer complete"
+                logStep("Receiver closed the connection after transfer.")
+            }
         }
     }
 
@@ -464,6 +570,7 @@ class WifiDirectTransferActivity : AppCompatActivity() {
         const val PURPOSE_SCAN_PATIENT = "scan_patient"
         const val PURPOSE_FETCH_RECORD = "fetch_record"
         private const val SOCKET_PORT = 8888
+        private const val MAX_PEER_SEARCH_ATTEMPTS = 8
     }
 }
 
