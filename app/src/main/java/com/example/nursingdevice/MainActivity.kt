@@ -6,6 +6,7 @@ import android.util.Log
 import android.widget.Button
 import android.widget.Switch
 import android.widget.TextView
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.example.nursingdevice.connections.StoragePermission
 import com.google.android.material.button.MaterialButton
@@ -47,7 +48,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         fetchEntireHistoryButton.setOnClickListener {
-            startActivity(Intent().setClassName(this, "$packageName.FetchEntireHistoryActivity"))
+            showFetchHistorySourceDialog()
         }
 
         viewFetchedBtn.setOnClickListener {
@@ -80,13 +81,36 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun showFetchHistorySourceDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("Fetch entire history")
+            .setItems(arrayOf("Cloud", "mCard")) { _, which ->
+                when (which) {
+                    0 -> startActivity(Intent(this, FetchEntireHistoryActivity::class.java))
+                    1 -> startMCardHistoryFetch()
+                }
+            }
+            .show()
+    }
+
+    private fun startMCardHistoryFetch() {
+        if (TransferModeStore.isWifiDirect(this)) {
+            startActivity(Intent(this, WifiDirectTransferActivity::class.java).apply {
+                putExtra(WifiDirectTransferActivity.EXTRA_DIRECTION, WifiDirectTransferActivity.DIRECTION_RECEIVE)
+                putExtra(WifiDirectTransferActivity.EXTRA_PURPOSE, WifiDirectTransferActivity.PURPOSE_FETCH_HISTORY)
+            })
+        } else {
+            startActivity(Intent(this, ReaderActivity::class.java).apply {
+                putExtra(ReaderActivity.EXTRA_PURPOSE, ReaderActivity.PURPOSE_FETCH_HISTORY)
+            })
+        }
+    }
+
     override fun onResume() {
         super.onResume()
         val manager = NursePatientManager(this)
         SessionCache.loadPatient(manager.getPatient())
         SessionCache.setFetchedRecord(manager.getLatestFetchedRecord())
-        SessionCache.sessionHistory.clear()
-        SessionCache.sessionHistory.addAll(manager.getSessionRecords())
 
         val nurse = manager.getNurse()
         val nurseLabel = if (nurse.name.isNotEmpty()) "Nurse: ${nurse.name}" else "Not logged in"

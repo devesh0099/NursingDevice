@@ -358,6 +358,7 @@ class SendForm : AppCompatActivity(), RecognitionListener {
         val fileName = generatedFileName ?: return
         if (TransferModeStore.isWifiDirect(this)) {
             MyHostApduService.setFileForTransfer(fileContent.toByteArray(Charsets.UTF_8), "text/plain")
+            NursePatientManager(this).addSessionRecord(fileContent, fileName)
             startActivity(Intent(this, WifiDirectTransferActivity::class.java).apply {
                 putExtra(WifiDirectTransferActivity.EXTRA_DIRECTION, WifiDirectTransferActivity.DIRECTION_SEND)
             })

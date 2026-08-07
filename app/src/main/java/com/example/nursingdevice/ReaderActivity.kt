@@ -27,6 +27,7 @@ class ReaderActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
     private val MAX_CHUNK_COUNT = 50000
 
     private var sessionKey: ByteArray? = null
+    private val purpose by lazy { intent.getStringExtra(EXTRA_PURPOSE) ?: PURPOSE_SCAN_PATIENT }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -145,7 +146,13 @@ class ReaderActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
             when (transferMode) {
                 "T" -> handleTextReception(metadataPayload.copyOfRange(1, metadataPayload.size))
                 "F" -> handleFileReception(isoDep, metadataPayload.copyOfRange(1, metadataPayload.size))
-                "M" -> handleMultiFileReception(isoDep)
+                "M" -> {
+                    if (purpose == PURPOSE_FETCH_HISTORY) {
+                        handleMultiFileReception(isoDep, metadataPayload)
+                    } else {
+                        handleFileReception(isoDep, metadataPayload.copyOfRange(1, metadataPayload.size))
+                    }
+                }
                 else -> throw IOException("Unknown transfer mode: $transferMode")
             }
 
@@ -196,39 +203,67 @@ class ReaderActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
         }
     }
 
-    private fun handleMultiFileReception(isoDep: IsoDep) {
+    private fun handleMultiFileReception(isoDep: IsoDep, firstMetadataPayload: ByteArray) {
         try {
-            val response = isoDep.transceive(Utils.GET_FILE_INFO_COMMAND)
-            if (!response.isSuccess()) throw IOException("Failed to get file metadata.")
+            val historyManager = NursePatientManager(this)
+            val patientId = historyManager.getPatient()?.patientId
+                ?.takeIf { it.isNotBlank() && it != "N/A" }
+                ?: SessionCache.currentPatientId.takeIf { it.isNotBlank() && it != "N/A" }
+                ?: throw IOException("Scan the Aggregator patient card before syncing all notes.")
 
-            val metadataPayload = CryptoUtils.xorEncryptDecrypt(response.getData(), sessionKey!!)
-            val fileSize = ByteBuffer.wrap(metadataPayload.copyOfRange(0, 4)).int
-            val receivedFileName = String(metadataPayload.copyOfRange(4, metadataPayload.size), Charsets.UTF_8)
+            var metadataPayload = firstMetadataPayload
+            var receivedCount = 0
+            var totalBytes = 0
 
-            logStep("Streaming Secure Data: $receivedFileName")
+            while (metadataPayload.isNotEmpty()) {
+                val mode = String(metadataPayload.copyOfRange(0, 1), Charsets.UTF_8)
+                if (mode != "M") throw IOException("Expected history metadata, got $mode")
+                if (metadataPayload.size < 5) throw IOException("History metadata was incomplete")
 
-            var receivedBytes = 0
-            var chunkCount = 0
+                val fileInfoPayload = metadataPayload.copyOfRange(1, metadataPayload.size)
+                val fileSize = ByteBuffer.wrap(fileInfoPayload.copyOfRange(0, 4)).int
+                val receivedFileName = String(fileInfoPayload.copyOfRange(4, fileInfoPayload.size), Charsets.UTF_8)
 
-            val output = ByteArrayOutputStream()
-            while (receivedBytes < fileSize && chunkCount < MAX_CHUNK_COUNT) {
-                val chunkResponse = isoDep.transceive(Utils.GET_NEXT_DATA_CHUNK_COMMAND)
-                if (!chunkResponse.isSuccess()) break
+                logStep("Streaming Secure Data: $receivedFileName")
 
-                val encryptedChunk = chunkResponse.getData()
-                val decryptedChunk = CryptoUtils.xorEncryptDecrypt(encryptedChunk, sessionKey!!)
+                var receivedBytes = 0
+                var chunkCount = 0
+                val output = ByteArrayOutputStream()
+                while (receivedBytes < fileSize && chunkCount < MAX_CHUNK_COUNT) {
+                    val chunkResponse = isoDep.transceive(Utils.GET_NEXT_DATA_CHUNK_COMMAND)
+                    if (!chunkResponse.isSuccess()) throw IOException("Transfer interrupted")
 
-                output.write(decryptedChunk)
-                receivedBytes += decryptedChunk.size
-                chunkCount++
+                    val encryptedChunk = chunkResponse.getData()
+                    val decryptedChunk = CryptoUtils.xorEncryptDecrypt(encryptedChunk, sessionKey!!)
 
-                val progress = (receivedBytes * 100 / fileSize)
-                logStep("Transferring: ${String.format("%.2f", receivedBytes / 1024.0)} / ${String.format("%.2f", fileSize / 1024.0)} KB ($progress%)")
+                    output.write(decryptedChunk)
+                    receivedBytes += decryptedChunk.size
+                    chunkCount++
+
+                    val progress = (receivedBytes * 100 / fileSize)
+                    logStep("Transferring: ${String.format("%.2f", receivedBytes / 1024.0)} / ${String.format("%.2f", fileSize / 1024.0)} KB ($progress%)")
+                }
+
+                historyManager.saveCloudHistory(output.toString(Charsets.UTF_8.name()), receivedFileName, patientId)
+                receivedCount++
+                totalBytes += receivedBytes
+                logStep("Saved history note: $receivedFileName")
+
+                val response = isoDep.transceive(Utils.GET_FILE_INFO_COMMAND)
+                if (!response.isSuccess()) throw IOException("Failed to get next file metadata.")
+                metadataPayload = CryptoUtils.xorEncryptDecrypt(response.getData(), sessionKey!!)
             }
 
-            displayContent(output.toString(Charsets.UTF_8.name()))
             logStep("Transfer Securely Completed.")
-            runOnUiThread { statusTextView?.text = "Transfer Complete" }
+            runOnUiThread {
+                receivedDataTextView?.text = "Fetched $receivedCount note(s), $totalBytes bytes total."
+                statusTextView?.text = "History Sync Complete"
+                Toast.makeText(this, "Fetched $receivedCount history note(s)", Toast.LENGTH_LONG).show()
+                startActivity(Intent(this, FetchEntireHistoryActivity::class.java).apply {
+                    putExtra(FetchEntireHistoryActivity.EXTRA_CACHED_ONLY, true)
+                })
+                finish()
+            }
 
         } catch (e: Exception) {
             throw e
@@ -238,6 +273,16 @@ class ReaderActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
     private fun handleTextReception(payload: ByteArray) {
         val receivedString = String(payload, Charsets.UTF_8)
         logStep("Text received securely")
+
+        if (purpose == PURPOSE_FETCH_HISTORY) {
+            runOnUiThread {
+                receivedDataTextView?.text = receivedString
+                scrollView?.post { scrollView?.scrollTo(0, 0) }
+                statusTextView?.text = "History Fetch Complete"
+                Toast.makeText(this, receivedString, Toast.LENGTH_LONG).show()
+            }
+            return
+        }
 
         SessionCache.processScannedData(receivedString)
         NursePatientManager(this).savePatient(receivedString)
@@ -284,5 +329,11 @@ class ReaderActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
             NfcAdapter.FLAG_READER_NFC_A or NfcAdapter.FLAG_READER_SKIP_NDEF_CHECK,
             null
         )
+    }
+
+    companion object {
+        const val EXTRA_PURPOSE = "purpose"
+        const val PURPOSE_SCAN_PATIENT = "scan_patient"
+        const val PURPOSE_FETCH_HISTORY = "fetch_history"
     }
 }

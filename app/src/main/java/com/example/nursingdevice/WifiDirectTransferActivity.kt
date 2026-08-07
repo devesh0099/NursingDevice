@@ -502,14 +502,76 @@ class WifiDirectTransferActivity : AppCompatActivity() {
         val mode = String(metadata.copyOfRange(0, 1), Charsets.UTF_8)
         when (mode) {
             "T" -> handleReceivedText(String(metadata.copyOfRange(1, metadata.size), Charsets.UTF_8), purpose)
-            "F", "M" -> {
+            "F" -> {
                 val fileInfo = metadata.copyOfRange(1, metadata.size)
                 val size = ByteBuffer.wrap(fileInfo.copyOfRange(0, 4)).int
                 val content = receiveFile(link, sessionKey, size)
                 handleReceivedText(String(content, Charsets.UTF_8), purpose)
             }
+            "M" -> {
+                if (purpose == PURPOSE_FETCH_HISTORY) {
+                    receiveHistoryFiles(link, sessionKey, metadata)
+                } else {
+                    val fileInfo = metadata.copyOfRange(1, metadata.size)
+                    val size = ByteBuffer.wrap(fileInfo.copyOfRange(0, 4)).int
+                    val content = receiveFile(link, sessionKey, size)
+                    handleReceivedText(String(content, Charsets.UTF_8), purpose)
+                }
+            }
             else -> throw IOException("Unknown transfer mode: $mode")
         }
+    }
+
+    private suspend fun receiveHistoryFiles(
+        link: SocketTransceiver,
+        sessionKey: ByteArray,
+        firstMetadata: ByteArray
+    ) {
+        val historyManager = NursePatientManager(this@WifiDirectTransferActivity)
+        val patientId = historyManager.getPatient()?.patientId
+            ?.takeIf { it.isNotBlank() && it != "N/A" }
+            ?: SessionCache.currentPatientId.takeIf { it.isNotBlank() && it != "N/A" }
+            ?: throw IOException("Scan the Aggregator patient card before syncing all notes.")
+
+        var metadata = firstMetadata
+        var receivedCount = 0
+        var receivedBytes = 0
+
+        while (metadata.isNotEmpty()) {
+            val mode = String(metadata.copyOfRange(0, 1), Charsets.UTF_8)
+            if (mode != "M") throw IOException("Expected history metadata, got $mode")
+            if (metadata.size < 5) throw IOException("History metadata was incomplete")
+
+            val fileInfo = metadata.copyOfRange(1, metadata.size)
+            val size = ByteBuffer.wrap(fileInfo.copyOfRange(0, 4)).int
+            val fileName = String(fileInfo.copyOfRange(4, fileInfo.size), Charsets.UTF_8)
+            logStep("Receiving history note: $fileName ($size bytes)")
+
+            val content = receiveFile(link, sessionKey, size)
+            receivedBytes += content.size
+            historyManager.saveCloudHistory(String(content, Charsets.UTF_8), fileName, patientId)
+            receivedCount++
+            logStep("Saved history note: $fileName")
+
+            val nextResponse = link.transceive(Utils.GET_FILE_INFO_COMMAND)
+            if (!nextResponse.isSuccess()) throw IOException("Failed to fetch next history metadata")
+            metadata = CryptoUtils.xorEncryptDecrypt(nextResponse.getData(), sessionKey)
+        }
+
+        withContext(Dispatchers.Main) {
+            statusText.text = "History sync complete"
+            receivedDataText.text = "Fetched $receivedCount note(s), $receivedBytes bytes total."
+            Toast.makeText(
+                this@WifiDirectTransferActivity,
+                "Fetched $receivedCount history note(s)",
+                Toast.LENGTH_LONG
+            ).show()
+            startActivity(Intent(this@WifiDirectTransferActivity, FetchEntireHistoryActivity::class.java).apply {
+                putExtra(FetchEntireHistoryActivity.EXTRA_CACHED_ONLY, true)
+            })
+            finish()
+        }
+        logStep("All history notes received securely.")
     }
 
     private suspend fun receiveFile(link: SocketTransceiver, sessionKey: ByteArray, fileSize: Int): ByteArray {
@@ -533,6 +595,9 @@ class WifiDirectTransferActivity : AppCompatActivity() {
                 SessionCache.setFetchedRecord(content)
                 NursePatientManager(this@WifiDirectTransferActivity).saveFetchedRecord(content)
                 Toast.makeText(this@WifiDirectTransferActivity, "Record fetched over Wi-Fi Direct", Toast.LENGTH_LONG).show()
+            }
+            PURPOSE_FETCH_HISTORY -> {
+                Toast.makeText(this@WifiDirectTransferActivity, content, Toast.LENGTH_LONG).show()
             }
             else -> {
                 SessionCache.processScannedData(content)
@@ -569,6 +634,7 @@ class WifiDirectTransferActivity : AppCompatActivity() {
         const val DIRECTION_RECEIVE = "receive"
         const val PURPOSE_SCAN_PATIENT = "scan_patient"
         const val PURPOSE_FETCH_RECORD = "fetch_record"
+        const val PURPOSE_FETCH_HISTORY = "fetch_history"
         private const val SOCKET_PORT = 8888
         private const val MAX_PEER_SEARCH_ATTEMPTS = 8
     }

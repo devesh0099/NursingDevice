@@ -63,7 +63,11 @@ class FetchEntireHistoryActivity : Activity() {
 
         backButton.setOnClickListener { navigateBack() }
 
-        startFetch()
+        if (intent.getBooleanExtra(EXTRA_CACHED_ONLY, false)) {
+            showCachedHistory()
+        } else {
+            startFetch()
+        }
     }
 
     override fun onResume() {
@@ -76,6 +80,23 @@ class FetchEntireHistoryActivity : Activity() {
     override fun onDestroy() {
         super.onDestroy()
         activityScope.cancel()
+    }
+
+    private fun showCachedHistory() {
+        val patient = manager.getPatient()
+        if (patient == null || patient.patientId.isBlank() || patient.patientId == "N/A") {
+            statusText.text = "No patient scanned"
+            currentPathText.text = "/"
+            showEmptyState("Scan the Aggregator mCard first so we have a patient ID.")
+            progressBar.visibility = View.GONE
+            Toast.makeText(this, "Scan a patient card first", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        currentPatientId = patient.patientId
+        progressBar.visibility = View.GONE
+        statusText.text = "Showing mCard history"
+        renderCurrentLevel()
     }
 
     private fun startFetch() {
@@ -111,10 +132,15 @@ class FetchEntireHistoryActivity : Activity() {
                 },
                 onFailure = { error ->
                     progressBar.visibility = View.GONE
-                    statusText.text = "Fetch failed"
-                    emptyStateText.visibility = View.VISIBLE
-                    emptyStateText.text = error.message ?: "Failed to fetch history"
-                    recyclerView.visibility = View.GONE
+                    if (manager.getCloudHistoryDates(patient.patientId).isNotEmpty()) {
+                        statusText.text = "Showing cached history"
+                        renderCurrentLevel()
+                    } else {
+                        statusText.text = "Fetch failed"
+                        emptyStateText.visibility = View.VISIBLE
+                        emptyStateText.text = error.message ?: "Failed to fetch history"
+                        recyclerView.visibility = View.GONE
+                    }
                     Toast.makeText(
                         this@FetchEntireHistoryActivity,
                         error.message ?: "Failed to fetch history",
@@ -188,5 +214,9 @@ class FetchEntireHistoryActivity : Activity() {
         recyclerView.visibility = View.GONE
         emptyStateText.visibility = View.VISIBLE
         emptyStateText.text = message
+    }
+
+    companion object {
+        const val EXTRA_CACHED_ONLY = "cached_only"
     }
 }
