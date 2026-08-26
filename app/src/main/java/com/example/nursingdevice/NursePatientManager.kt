@@ -14,6 +14,9 @@ data class Patient(
     val age: Int,
     val gender: String,
     val bloodType: String,
+    val sugar: String = "",
+    val height: String = "",
+    val weight: String = "",
     val patientId: String
 )
 
@@ -77,6 +80,9 @@ class NursePatientManager(private val context: Context) {
             age = SessionCache.currentPatientAge.toIntOrNull() ?: 0,
             gender = SessionCache.currentPatientGender,
             bloodType = SessionCache.currentPatientBloodType,
+            sugar = SessionCache.currentPatientSugar,
+            height = SessionCache.currentPatientHeight,
+            weight = SessionCache.currentPatientWeight,
             patientId = id
         )
     }

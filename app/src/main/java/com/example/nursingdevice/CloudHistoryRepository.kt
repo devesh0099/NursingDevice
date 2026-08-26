@@ -25,7 +25,10 @@ data class CloudPatientData(
     @SerializedName("name") val name: String,
     @SerializedName("age") val age: Int?,
     @SerializedName("gender") val gender: String?,
-    @SerializedName("bloodType") val bloodType: String?
+    @SerializedName("bloodType") val bloodType: String?,
+    @SerializedName("sugar") val sugar: String?,
+    @SerializedName("height") val height: String?,
+    @SerializedName("weight") val weight: String?
 )
 
 data class CloudPatientApiResponse(
@@ -85,7 +88,10 @@ class CloudHistoryRepository {
                     name = "Unknown Patient",
                     age = null,
                     gender = null,
-                    bloodType = null
+                    bloodType = null,
+                    sugar = null,
+                    height = null,
+                    weight = null
                 )
                 val records = fetchPatientRecords(patientId)
 
@@ -234,6 +240,9 @@ class CloudHistoryRepository {
             appendLine("Age: ${patient.age ?: 0}")
             appendLine("Gender: ${patient.gender.orEmpty()}")
             appendLine("Blood Type: ${patient.bloodType.orEmpty()}")
+            appendLine("Blood Sugar: ${patient.sugar.orEmpty()}")
+            appendLine("Height: ${patient.height.orEmpty()}")
+            appendLine("Weight: ${patient.weight.orEmpty()}")
             appendLine("Nurse ID: ${record.nurseId.orEmpty()}")
             appendLine("Blood Pressure: ${record.bp.orEmpty()}")
             appendLine("Heart Rate: ${record.hr?.toString() ?: ""} bpm")

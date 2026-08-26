@@ -11,6 +11,9 @@ object SessionCache {
     var currentPatientAge: String = ""
     var currentPatientGender: String = ""
     var currentPatientBloodType: String = ""
+    var currentPatientSugar: String = ""
+    var currentPatientHeight: String = ""
+    var currentPatientWeight: String = ""
     var currentPatientId: String = ""
 
     // Stores all the reports generated during this app session
@@ -27,6 +30,9 @@ object SessionCache {
             currentPatientAge = jsonObject.optString("age", "N/A")
             currentPatientGender = jsonObject.optString("gender", "N/A")
             currentPatientBloodType = jsonObject.optString("bloodType", "N/A")
+            currentPatientSugar = jsonObject.optString("sugar", "")
+            currentPatientHeight = jsonObject.optString("height", "")
+            currentPatientWeight = jsonObject.optString("weight", "")
             currentPatientId = jsonObject.optString("patientId", "N/A")
 
             Log.d("SessionCache", "Successfully parsed JSON for patient: $currentPatientName")
@@ -60,6 +66,9 @@ object SessionCache {
             currentPatientAge = ""
             currentPatientGender = ""
             currentPatientBloodType = ""
+            currentPatientSugar = ""
+            currentPatientHeight = ""
+            currentPatientWeight = ""
             currentPatientId = ""
             return
         }
@@ -68,6 +77,9 @@ object SessionCache {
         currentPatientAge = patient.age.toString()
         currentPatientGender = patient.gender
         currentPatientBloodType = patient.bloodType
+        currentPatientSugar = patient.sugar
+        currentPatientHeight = patient.height
+        currentPatientWeight = patient.weight
         currentPatientId = patient.patientId
     }
 
@@ -81,6 +93,9 @@ object SessionCache {
         currentPatientAge = ""
         currentPatientGender = ""
         currentPatientBloodType = ""
+        currentPatientSugar = ""
+        currentPatientHeight = ""
+        currentPatientWeight = ""
         currentPatientId = ""
         sessionHistory.clear()
     }
