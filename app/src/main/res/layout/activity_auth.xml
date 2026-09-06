@@ -34,17 +34,33 @@
             android:paddingStart="12dp"
             android:paddingEnd="12dp"/>
 
-        <!-- PIN — unlocks the encrypted credential store (set at registration) -->
-        <EditText
-            android:id="@+id/pinInput"
+        <!-- PIN - unlocks the encrypted credential store (set at registration) -->
+        <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="56dp"
-            android:hint="PIN (protects your credentials)"
-            android:inputType="numberPassword"
-            android:textSize="15sp"
-            android:layout_marginBottom="16dp"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp"/>
+            android:layout_marginBottom="16dp">
+
+            <EditText
+                android:id="@+id/pinInput"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:hint="PIN (protects your credentials)"
+                android:inputType="numberPassword"
+                android:textSize="15sp"
+                android:paddingStart="12dp"
+                android:paddingEnd="72dp"/>
+
+            <TextView
+                android:id="@+id/pinVisibilityToggle"
+                android:layout_width="64dp"
+                android:layout_height="match_parent"
+                android:layout_gravity="end|center_vertical"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:gravity="center"
+                android:text="Show"
+                android:textColor="@color/colorPrimary"
+                android:textSize="13sp"/>
+        </FrameLayout>
 
         <!-- Login button -->
         <com.google.android.material.button.MaterialButton

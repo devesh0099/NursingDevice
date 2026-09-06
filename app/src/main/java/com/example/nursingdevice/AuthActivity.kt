@@ -2,6 +2,7 @@ package com.example.nursingdevice
 
 import android.content.Intent
 import android.os.Bundle
+import android.text.InputType
 import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
@@ -25,8 +26,10 @@ class AuthActivity : AppCompatActivity() {
     private lateinit var pocSpinner: Spinner
     private lateinit var contactInput: EditText
     private lateinit var registerBtn: MaterialButton
+    private lateinit var pinVisibilityToggle: TextView
 
     private var isRegisterMode = false
+    private var isPinVisible = false
 
     private val pocValues = listOf("homecare", "first_responder", "ambulance", "hospital")
     private val pocLabels = listOf("Home Care", "First Responder", "Ambulance", "Hospital")
@@ -48,14 +51,27 @@ class AuthActivity : AppCompatActivity() {
         pocSpinner      = findViewById(R.id.pocSpinner)
         contactInput    = findViewById(R.id.nurseContactInput)
         registerBtn     = findViewById(R.id.registerBtn)
+        pinVisibilityToggle = findViewById(R.id.pinVisibilityToggle)
 
         pocSpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, pocLabels).also {
             it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         }
 
+        pinVisibilityToggle.setOnClickListener { togglePinVisibility() }
         toggleLink.setOnClickListener { toggleMode() }
         loginBtn.setOnClickListener { handleLogin() }
         registerBtn.setOnClickListener { handleRegister() }
+    }
+
+    private fun togglePinVisibility() {
+        isPinVisible = !isPinVisible
+        pinInput.inputType = InputType.TYPE_CLASS_NUMBER or if (isPinVisible) {
+            InputType.TYPE_NUMBER_VARIATION_NORMAL
+        } else {
+            InputType.TYPE_NUMBER_VARIATION_PASSWORD
+        }
+        pinInput.setSelection(pinInput.text.length)
+        pinVisibilityToggle.text = if (isPinVisible) "Hide" else "Show"
     }
 
     private fun toggleMode() {
