@@ -61,6 +61,18 @@ class SendForm : AppCompatActivity(), RecognitionListener {
     private lateinit var speechIntent: Intent
     private var isListening = false
 
+    private enum class VoiceField {
+        DESCRIPTION,
+        MEDICATION
+    }
+
+    // Only one SpeechRecognizer session can be active at a time.
+    private var activeVoiceField: VoiceField? = null
+
+    // Incremented whenever listening is stopped so delayed callbacks from an
+    // older session cannot restart recognition.
+    private var voiceSessionId = 0
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_send_form)
@@ -110,7 +122,7 @@ class SendForm : AppCompatActivity(), RecognitionListener {
             nurseIdInput.setText(savedNurse.id)
         }
 
-        // Only add editable fields to voice sequence (medication last — continuous mode)
+        // Voice sequence for standard fields. Description and Medication use independent continuous mode.
         voiceEnabledFields.clear()
         voiceEnabledFields.add(nurseIdInput)
         voiceEnabledFields.add(bpInput)
@@ -181,7 +193,56 @@ class SendForm : AppCompatActivity(), RecognitionListener {
         }
     }
 
-    private fun isMedicationField(index: Int): Boolean = index == 6
+    private fun isContinuousField(index: Int): Boolean =
+        index == 5 || index == 6
+
+    private fun voiceFieldForIndex(index: Int): VoiceField? = when (index) {
+        5 -> VoiceField.DESCRIPTION
+        6 -> VoiceField.MEDICATION
+        else -> null
+    }
+
+    private fun buttonForVoiceField(field: VoiceField): ImageButton = when (field) {
+        VoiceField.DESCRIPTION -> voiceDescriptionBtn
+        VoiceField.MEDICATION -> voiceMedicationBtn
+    }
+
+    private fun setVoiceButtonState(field: VoiceField, listening: Boolean) {
+        val button = buttonForVoiceField(field)
+
+        if (listening) {
+            button.setImageResource(android.R.drawable.ic_menu_close_clear_cancel)
+            button.contentDescription = "Stop ${field.name.lowercase()} voice input"
+        } else {
+            button.setImageResource(android.R.drawable.ic_btn_speak_now)
+            button.contentDescription = "Start ${field.name.lowercase()} voice input"
+        }
+    }
+
+    private fun stopActiveVoiceInput() {
+        val activeField = activeVoiceField ?: return
+
+        voiceSessionId++
+        isListening = false
+        activeVoiceField = null
+        setVoiceButtonState(activeField, false)
+
+        try {
+            speechRecognizer.stopListening()
+        } catch (_: Exception) {
+        }
+
+        try {
+            speechRecognizer.cancel()
+        } catch (_: Exception) {
+        }
+    }
+
+    private fun stopContinuousVoiceInput(field: VoiceField) {
+        if (activeVoiceField == field) {
+            stopActiveVoiceInput()
+        }
+    }
 
     private fun checkAudioPermission() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
@@ -195,46 +256,116 @@ class SendForm : AppCompatActivity(), RecognitionListener {
         voiceHeartRateBtn.setOnClickListener { startVoiceInputAtIndex(2) }
         voiceRespRateBtn.setOnClickListener { startVoiceInputAtIndex(3) }
         voiceTempBtn.setOnClickListener { startVoiceInputAtIndex(4) }
-        voiceDescriptionBtn.setOnClickListener { startVoiceInputAtIndex(5) }
-        voiceMedicationBtn.setOnClickListener { startVoiceInputAtIndex(6) }
+        voiceDescriptionBtn.setOnClickListener {
+            if (activeVoiceField == VoiceField.DESCRIPTION) {
+                stopContinuousVoiceInput(VoiceField.DESCRIPTION)
+            } else {
+                startVoiceInputAtIndex(5)
+            }
+        }
+
+        voiceMedicationBtn.setOnClickListener {
+            if (activeVoiceField == VoiceField.MEDICATION) {
+                stopContinuousVoiceInput(VoiceField.MEDICATION)
+            } else {
+                startVoiceInputAtIndex(6)
+            }
+        }
     }
 
     private fun startVoiceInputAtIndex(index: Int) {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) return
         if (index >= voiceEnabledFields.size) return
 
-        currentFieldIndex = index
-        voiceEnabledFields[index].requestFocus()
-        if (isMedicationField(index)) {
-            Toast.makeText(this, "Listening for Medication... say \"stop\" when done", Toast.LENGTH_LONG).show()
-        } else {
-            Toast.makeText(this, "Listening for ${getFieldName(index)}...", Toast.LENGTH_SHORT).show()
+        // Description and Medication have explicit, independent continuous
+        // sessions. Starting one stops the other first.
+        val requestedVoiceField = voiceFieldForIndex(index)
+        if (requestedVoiceField != null) {
+            if (activeVoiceField != null && activeVoiceField != requestedVoiceField) {
+                stopActiveVoiceInput()
+            }
+
+            activeVoiceField = requestedVoiceField
+            setVoiceButtonState(requestedVoiceField, true)
+        } else if (activeVoiceField != null) {
+            stopActiveVoiceInput()
         }
 
+        currentFieldIndex = index
+        voiceEnabledFields[index].requestFocus()
+
+        val sessionId = ++voiceSessionId
+
+        Toast.makeText(
+            this,
+            "Listening for ${getFieldName(index)}...",
+            Toast.LENGTH_SHORT
+        ).show()
+
         try {
+            speechRecognizer.cancel()
             speechRecognizer.startListening(speechIntent)
             isListening = true
         } catch (e: Exception) {
+            if (requestedVoiceField != null && activeVoiceField == requestedVoiceField) {
+                activeVoiceField = null
+                setVoiceButtonState(requestedVoiceField, false)
+            }
+            isListening = false
             Toast.makeText(this, "Error starting voice: ${e.message}", Toast.LENGTH_SHORT).show()
         }
+    }
+
+    private fun restartContinuousListening(field: VoiceField, delayMillis: Long = 500L) {
+        val sessionId = voiceSessionId
+
+        Handler(Looper.getMainLooper()).postDelayed({
+            if (
+                sessionId == voiceSessionId &&
+                activeVoiceField == field &&
+                !isFinishing &&
+                !isDestroyed
+            ) {
+                startVoiceInputAtIndex(
+                    when (field) {
+                        VoiceField.DESCRIPTION -> 5
+                        VoiceField.MEDICATION -> 6
+                    }
+                )
+            }
+        }, delayMillis)
     }
 
     override fun onReadyForSpeech(params: Bundle?) {}
     override fun onBeginningOfSpeech() {}
     override fun onRmsChanged(rmsdB: Float) {}
     override fun onBufferReceived(buffer: ByteArray?) {}
-    override fun onEndOfSpeech() { isListening = false }
+    override fun onEndOfSpeech() {
+        isListening = false
+    }
+
     override fun onError(error: Int) {
         isListening = false
-        if (isMedicationField(currentFieldIndex) && (error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT)) {
-            // Medication field: keep listening through silence
-            Handler(Looper.getMainLooper()).postDelayed({
-                startVoiceInputAtIndex(currentFieldIndex)
-            }, 500)
+
+        val field = activeVoiceField
+        if (
+            field != null &&
+            (error == SpeechRecognizer.ERROR_NO_MATCH ||
+                error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT)
+        ) {
+            // Keep Description and Medication listening until their explicit
+            // X button is pressed.
+            restartContinuousListening(field)
             return
         }
+
         if (error == SpeechRecognizer.ERROR_NO_MATCH) {
             Toast.makeText(this, "Didn't catch that, try again", Toast.LENGTH_SHORT).show()
+        }
+
+        if (field != null) {
+            activeVoiceField = null
+            setVoiceButtonState(field, false)
         }
     }
 
@@ -244,32 +375,29 @@ class SendForm : AppCompatActivity(), RecognitionListener {
             val spokenText = matches[0]
 
             if (currentFieldIndex < voiceEnabledFields.size) {
-                // Medication field: continuous listening until user says "stop"
-                if (isMedicationField(currentFieldIndex)) {
-                    if (spokenText.trim().equals("stop", ignoreCase = true)) {
-                        Toast.makeText(this, "Medication input done", Toast.LENGTH_SHORT).show()
-                        isListening = false
-                        return
-                    }
+                val continuousField = voiceFieldForIndex(currentFieldIndex)
 
+                if (continuousField != null && activeVoiceField == continuousField) {
                     val field = voiceEnabledFields[currentFieldIndex]
                     val existing = field.text.toString().trim()
+
                     if (existing.isEmpty()) {
                         field.setText(spokenText)
                     } else {
-                        field.setText("$existing, $spokenText")
+                        field.setText("$existing $spokenText")
                     }
+
                     field.setSelection(field.text.length)
                     Toast.makeText(this, "Added: $spokenText", Toast.LENGTH_SHORT).show()
 
-                    // Keep listening on the same field
-                    Handler(Looper.getMainLooper()).postDelayed({
-                        startVoiceInputAtIndex(currentFieldIndex)
-                    }, 500)
+                    // Continue listening to the same field until its X button
+                    // explicitly stops the session.
+                    restartContinuousListening(continuousField)
                     return
                 }
 
-                // All other fields: single input, then advance
+                // Existing sequential behavior for the other voice-enabled
+                // fields remains unchanged.
                 val field = voiceEnabledFields[currentFieldIndex]
                 val existing = field.text.toString().trim()
                 if (existing.isEmpty()) {
@@ -371,7 +499,11 @@ class SendForm : AppCompatActivity(), RecognitionListener {
     }
 
     override fun onDestroy() {
+        stopActiveVoiceInput()
         super.onDestroy()
-        try { speechRecognizer.destroy() } catch (e: Exception) {}
+        try {
+            speechRecognizer.destroy()
+        } catch (_: Exception) {
+        }
     }
 }
